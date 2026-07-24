@@ -1,0 +1,10 @@
+{
+    // Pozwol clangd odpytac kompilator arm-zephyr-eabi-gcc o jego naglowki
+    // systemowe (stdint.h, stddef.h itd.) - bez tego zostaja bledy na
+    // standardowych naglowkach. Sciezka zgodna z Zephyr SDK w kontenerze.
+    "clangd.arguments": [
+        "--query-driver=/home/dev/zephyr-sdk-*/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-*",
+        "--header-insertion=never",
+        "--background-index"
+    ]
+}

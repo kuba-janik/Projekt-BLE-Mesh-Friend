@@ -1,0 +1,38 @@
+{
+    "image": "ubuntu:22.04",
+    "name": "zephyr",
+    "remoteUser": "dev",
+    "forwardPorts": [
+        8001
+    ],
+    "features": {
+        "./features/additional": {},
+        "ghcr.io/devcontainers-community/features/llvm": {
+            "version": "20"
+        },
+        "ghcr.io/goodbyte-software/goodbyte-features/jlink:latest": {
+            "version": "8.60"
+        }
+    },
+    "mounts": [
+        "source=.,target=/repo,type=bind",
+        "source=/dev,target=/dev,type=bind"
+    ],
+    "onCreateCommand": "bash -i /repo/.devcontainer/onCreateCommand.sh",
+    "workspaceFolder": "/repo",
+    "remoteEnv": {
+        "LC_ALL": "C"
+    },
+    "shutdownAction": "stopContainer",
+    "runArgs": [
+        "--privileged"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "llvm-vs-code-extensions.vscode-clangd",
+                "marus25.cortex-debug"
+            ]
+        }
+    }
+}

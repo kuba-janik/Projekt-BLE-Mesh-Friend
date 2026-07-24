@@ -1,0 +1,11 @@
+/* Piny NFC -> GPIO */
+// &uicr {
+// 	nfct-pins-as-gpios;
+// };
+
+// &temp {
+// 	status = "disabled";
+// };
+// &adc {
+// 	status = "disabled";
+// };

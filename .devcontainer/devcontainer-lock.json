@@ -1,0 +1,35 @@
+{
+  "features": {
+    "ghcr.io/devcontainers-community/features/llvm": {
+      "version": "3.2.0",
+      "resolved": "ghcr.io/devcontainers-community/features/llvm@sha256:4f464ab97a59439286a55490b55ba9851616f6f76ac3025e134127ac08ad79e2",
+      "integrity": "sha256:4f464ab97a59439286a55490b55ba9851616f6f76ac3025e134127ac08ad79e2"
+    },
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "version": "2.5.9",
+      "resolved": "ghcr.io/devcontainers/features/common-utils@sha256:cb0c4d3c276f157eed17935747e364178d75fee17f55c4e129966f64633deb3a",
+      "integrity": "sha256:cb0c4d3c276f157eed17935747e364178d75fee17f55c4e129966f64633deb3a"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "1.8.0",
+      "resolved": "ghcr.io/devcontainers/features/python@sha256:fbcad6955caeecc5ad3f7886baf652e25cba5225a6c4c2287c536de2e5607511",
+      "integrity": "sha256:fbcad6955caeecc5ad3f7886baf652e25cba5225a6c4c2287c536de2e5607511"
+    },
+    "ghcr.io/goodbyte-software/goodbyte-features/dev-dependencies:latest": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/goodbyte-software/goodbyte-features/dev-dependencies@sha256:bf28134f353e283d07eb805a98374aaf2db1fc46768ec03eaa17e8cf39b76f89",
+      "integrity": "sha256:bf28134f353e283d07eb805a98374aaf2db1fc46768ec03eaa17e8cf39b76f89",
+      "dependsOn": [
+        "ghcr.io/devcontainers/features/common-utils:2"
+      ]
+    },
+    "ghcr.io/goodbyte-software/goodbyte-features/jlink:latest": {
+      "version": "1.0.2",
+      "resolved": "ghcr.io/goodbyte-software/goodbyte-features/jlink@sha256:ec08917ae31afc991474418575922ec63b8b42a19e791fb496ebe64f27079dd8",
+      "integrity": "sha256:ec08917ae31afc991474418575922ec63b8b42a19e791fb496ebe64f27079dd8",
+      "dependsOn": [
+        "ghcr.io/devcontainers/features/common-utils:2"
+      ]
+    }
+  }
+}

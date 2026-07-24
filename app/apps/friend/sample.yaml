@@ -1,0 +1,16 @@
+sample:
+  name: BLE Mesh Node Friend
+
+common:
+    sysbuild: true
+    build_only: true
+    skip: true
+    integration_platforms:
+      - nrf52840dongle/nrf52840
+    platform_allow:
+      - nrf52840dongle/nrf52840
+    platform_exclude:
+      - native_sim
+
+tests:
+  ble_mesh.node_friend: {}

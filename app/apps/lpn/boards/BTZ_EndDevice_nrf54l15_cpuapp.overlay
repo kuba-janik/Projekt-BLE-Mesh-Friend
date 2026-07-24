@@ -1,0 +1,18 @@
+/*
+ * Wylaczamy nieuzywane czujniki, zeby zdjac ten narzut energetyczny.
+ */
+
+&ltr329 {
+	status = "disabled";
+};
+
+&bmi270 {
+	status = "disabled";
+};
+
+/*
+ * STS4X: tryb pomiaru "low"
+ */
+&sts4x {
+	repeatability = <0>;
+};

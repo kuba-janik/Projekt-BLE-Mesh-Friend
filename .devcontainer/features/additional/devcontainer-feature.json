@@ -1,0 +1,15 @@
+{
+    "id": "additional",
+    "version": "1.0.1",
+    "name": "Additional packages",
+    "description": "Install additional necessary packages",
+    "dependsOn": {
+        "ghcr.io/goodbyte-software/goodbyte-features/dev-dependencies:latest": {
+            "ninjaVersion": "1.10.2",
+            "installDeviceTreeCompiler": "true"
+        },
+        "ghcr.io/devcontainers/features/python:1": {
+            "version": "3.12"
+        }
+    }
+}

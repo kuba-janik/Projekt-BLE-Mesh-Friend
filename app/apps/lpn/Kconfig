@@ -1,0 +1,22 @@
+# Parametry aplikacji LPN sterowane flaga build (-DCONFIG_...=...).
+#
+# WZORZEC: dokladaj tu kolejne symbole (np. TTL publikacji, LPN poll
+# timeout, moc TX, liczba retransmisji), odczytuj je w kodzie przez
+# CONFIG_..., a serie wartosci puszczaj sweepem z narzedzia power-test
+# (karta "Pomiar N" -> "Pomiar N.1, N.2, ..."). Domyslne wartosci maja
+# odwzorowywac dotychczasowe #define, zeby build bez flagi nic nie zmienial.
+
+config LPN_SENSOR_INTERVAL_S
+	int "Interwal odczytu i publikacji temperatury do Frienda [s]"
+	default 10
+	range 1 86400
+	help
+	  Odstep miedzy kolejnymi publikacjami Sensor Server -> Friend.
+	  Domyslnie 10 s (jak dotychczasowy #define SENSOR_READ_INTERVAL_S).
+	  Sterowane build-time: -DCONFIG_LPN_SENSOR_INTERVAL_S=<sekundy>.
+
+	  Uwaga: przy duzych interwalach LPN i tak polluje Frienda co
+	  CONFIG_BT_MESH_LPN_POLL_TIMEOUT (x100 ms) - to nie zmienia rytmu
+	  publikacji, ale wplywa na ksztalt pradu.
+
+source "Kconfig.zephyr"

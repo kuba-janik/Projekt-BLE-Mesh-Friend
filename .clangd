@@ -1,0 +1,22 @@
+# Konfiguracja clangd dla tego workspace.
+#
+# Uzywamy SCALONEJ bazy compile_commands.json w korzeniu repo, zlozonej z baz
+# wszystkich apek (baseline, friend, lpn, lpn_mock). Dzieki temu clangd dziala
+# dla kazdej apki bez przelaczania sciezki.
+#
+# Regeneracja po `west build` (gdy dojda/znikna pliki zrodlowe albo zmieni sie
+# konfiguracja Kconfig/DTS):
+#   jq -s 'add' build/*/*/compile_commands.json > compile_commands.json
+#
+# UWAGA: wpisy maja sciezki /repo/... (build leci w kontenerze nrfutil, ktory
+# montuje projekt jako /repo). Aby rozwiazywaly sie na hoscie, musi istniec
+# symlink:  sudo ln -s /home/goodbyte/Projects/Projekt-BLE-Mesh-Friend /repo
+CompileFlags:
+  CompilationDatabase: .
+  # Flagi specyficzne dla arm-zephyr-eabi-gcc, ktorych clang nie zna.
+  # Usuwamy je, zeby clangd nie zglaszal "Unknown argument". Dopisz kolejne
+  # w tym samym stylu, jesli pojawia sie nowe "Unknown argument".
+  Remove:
+    - -fno-printf-return-value
+    - -fno-reorder-functions
+    - -mfp16-format=*

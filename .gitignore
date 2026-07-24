@@ -1,0 +1,14 @@
+# West workspace metadata (tworzone przez `west init`)
+/.west/
+
+# Zaleznosci sciagane przez `west update` (NCS + zephyr + moduly)
+/deps/
+
+# Artefakty budowania. Kazda aplikacja buduje sie do wlasnego podkatalogu:
+#   build/friend    (nRF52840 Dongle)
+#   build/lpn       (BTZ_EndDevice / nRF54L15)
+#   build/lpn_mock  (BTZ_EndDevice / nRF54L15)
+/build/
+
+# Scalona baza clangd (regenerowana z build/*/*/compile_commands.json)
+/compile_commands.json

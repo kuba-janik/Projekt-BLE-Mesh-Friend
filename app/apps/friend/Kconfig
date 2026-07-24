@@ -1,0 +1,3 @@
+source "Kconfig.zephyr"
+
+mainmenu "BLE Mesh Node Friend"
