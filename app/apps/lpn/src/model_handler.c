@@ -11,9 +11,6 @@
 
 LOG_MODULE_DECLARE(lpn_node);
 
-  /* Config Client  */
-  static struct bt_mesh_cfg_cli cfg_cli;
-
   /* Health Server */
   static const struct bt_mesh_health_srv_cb health_srv_cb;   /* puste callbacki */
   static struct bt_mesh_health_srv health_srv = {
@@ -110,7 +107,6 @@ LOG_MODULE_DECLARE(lpn_node);
         BT_MESH_ELEM(0,
                 BT_MESH_MODEL_LIST(
                         BT_MESH_MODEL_CFG_SRV,
-                        BT_MESH_MODEL_CFG_CLI(&cfg_cli),
                         BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
                         BT_MESH_MODEL_SENSOR_SRV(&sensor_srv)),
                 BT_MESH_MODEL_NONE),

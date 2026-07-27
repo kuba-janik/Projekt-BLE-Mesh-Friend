@@ -1,5 +1,6 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/mesh.h>
+#include <zephyr/bluetooth/mesh/cdb.h>
 #include <bluetooth/mesh/models.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
@@ -15,10 +16,11 @@ extern void bt_mesh_rpl_clear(void);
 #define LED_NODE	DT_ALIAS(led0)
 
 
-/* Provisioning na sztywno */
+/* Adresacja sieci */
 #define NET_IDX		0x0000 		/* Index sieci */
 #define APP_IDX		0x0000 		/* Index aplikacji */
-#define FRIEND_ADDR	0x0001		/* staly adres Friend */
+#define FRIEND_ADDR	0x0001		/* staly adres Friend (provisioner) */
+#define LPN_ADDR	0x0002		/* staly adres przydzielany LPN-owi */
 
 /* KLUCZE */
 static const uint8_t net_key[16] = {
@@ -35,8 +37,12 @@ static const uint8_t dev_key[16] = {
 	0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf,
 };
 
-/* UUID */
+/* UUID Frienda */
 static const uint8_t dev_uuid[16] = { 0xdd, 0xdd };
+
+/* UUID LPN-a, ktorego provisionujemy. Friend reaguje tylko na beacon o tym
+ * UUID - obce urzadzenia sa ignorowane. Musi byc zgodny z dev_uuid w apps/lpn. */
+static const uint8_t lpn_uuid[16] = { 0x1b, 0x7a, 0x0c, 0x54 };
 
 /* Wypianie klucza dla Wireshark */
 static void log_sniff_key(const char *name, const uint8_t key[16])
@@ -126,26 +132,284 @@ static const struct bt_mesh_comp mesh_comp = {
 	.elem_count = ARRAY_SIZE(elements), /* Liczba elementow */
 };
 
-/* Konfiguracja roli podczas provisioningu */
+/* Adres LPN-a sprovisionowanego w ostatnim cyklu - uzywany przez work zdalnej
+ * konfiguracji. */
+static uint16_t provisioned_lpn_addr;
+/* Blokada, by nie ruszac kolejnego provisioningu, gdy jeden juz trwa
+ * (beacony przychodza cyklicznie). */
+static bool prov_in_progress;
+
+/* Zdalna konfiguracja MUSI ruszyc zaraz po provisioningu (node_added), gdy LPN
+ * jest jeszcze normalnym, skanujacym wezlem - tylko wtedy odsyla Segment ACK dla
+ * segmentowanego AppKey Add. W trybie LPN wezel z zasady NIE ACK-uje ("Not
+ * sending ack when LPN is enabled") -> segmentowana konfiguracja jest niemozliwa.
+ * Konfigurowanie po nawiazaniu friendship jest ZA POZNO (friendship == LPN juz
+ * spi). Krotka zwloka daje czas na domkniecie linku PB-ADV. Kazda odebrana
+ * wiadomosc resetuje timer LPN_AUTO, wiec LPN nie zasnie w trakcie konfiguracji;
+ * po jej zakonczeniu (15 s ciszy) sam wejdzie w LPN - juz skonfigurowany. */
+#define LPN_CFG_DELAY		K_SECONDS(2)
+#define LPN_CFG_RETRIES		3
+/* Zapas timeoutu Config Client (domyslne ~5 s zwykle wystarcza dla obudzonego
+ * wezla, ale zostawiamy margines). */
+#define LPN_CFG_TIMEOUT_MS	15000
+
+/* Watchdog provisioningu: jesli po tym czasie nie przyjdzie node_added,
+ * zwalniamy prov_in_progress, zeby kolejny beacon mogl ponowic probe. Bez tego
+ * jeden nieudany provisioning zawieszalby Frienda na stale. */
+#define PROV_WATCHDOG		K_SECONDS(10)
+
+static struct k_work_delayable prov_watchdog_work;
+
+/* Konfiguracja LPN idzie z DEDYKOWANEGO watku, nie z system workqueue. Blokujace
+ * wywolania Config Client (bt_mesh_cfg_cli_*) czekaja do 15 s na odpowiedz; gdyby
+ * biegly na syswq, blokowalyby retransmisje SAR-TX oraz obsluge kolejnego
+ * unprovisioned beacona (re-provisioning wracajacego LPN) na caly ten czas.
+ * Watek budzi sie semaforem podnoszonym w node_added (tak samo robi dzialajacy
+ * przyklad z provisionerem). */
+K_SEM_DEFINE(sem_node_added, 0, 1);
+
+/* Czy LPN nawiazal juz friendship (== zasnal). Ustawiane w callbackach Friend.
+ * Konfiguracja segmentowana (AppKey Add) dziala TYLKO gdy LPN jest pelnym,
+ * skanujacym wezlem. Gdy friendship jest nawiazany, LPN spi i nie odbiera
+ * bezposrednio wysylanych segmentow -> Config Client dostaje ETIMEDOUT (-116).
+ * Flaga sluzy do jednoznacznej diagnozy tej sytuacji w logu Frienda. */
+static volatile bool lpn_in_friendship;
+
+/* Szukanie wezla w CDB po UUID (do wykrycia restartu LPN). */
+struct cdb_uuid_search {
+	const uint8_t *uuid;
+	struct bt_mesh_cdb_node *found;
+};
+
+static uint8_t cdb_uuid_match(struct bt_mesh_cdb_node *node, void *user_data)
+{
+	struct cdb_uuid_search *s = user_data;
+
+	if (memcmp(node->uuid, s->uuid, 16) == 0) {
+		s->found = node;
+		return BT_MESH_CDB_ITER_STOP;
+	}
+
+	return BT_MESH_CDB_ITER_CONTINUE;
+}
+
+static struct bt_mesh_cdb_node *cdb_node_by_uuid(const uint8_t uuid[16])
+{
+	struct cdb_uuid_search s = { .uuid = uuid, .found = NULL };
+
+	bt_mesh_cdb_node_foreach(cdb_uuid_match, &s);
+	return s.found;
+}
+
+/* Jedno podejscie do zdalnej konfiguracji LPN przez Config Client (transport
+ * bierze DevKey LPN z CDB). Odpowiednik dawnego loopback self-config, ktory LPN
+ * robil sam sobie: dodanie AppKey, bind modeli serwerowych i publikacja Sensor
+ * Servera na Frienda. Zwraca 0 gdy cala sekwencja przeszla, inaczej blad.
+ * Wiadomosci sa idempotentne, wiec cala sekwencje mozna bezpiecznie ponowic. */
+static int configure_lpn(uint16_t addr)
+{
+	uint8_t status;
+	int err;
+
+	err = bt_mesh_cfg_cli_app_key_add(NET_IDX, addr, NET_IDX, APP_IDX,
+					  app_key, &status);
+	if (err || status) {
+		LOG_WRN("AppKey add na LPN nieudane (err %d, status %d)", err, status);
+		return err ? err : -EIO;
+	}
+
+	const uint16_t bind_ids[] = {
+		BT_MESH_MODEL_ID_SENSOR_SRV,
+		BT_MESH_MODEL_ID_HEALTH_SRV,
+	};
+
+	for (size_t i = 0; i < ARRAY_SIZE(bind_ids); i++) {
+		err = bt_mesh_cfg_cli_mod_app_bind(NET_IDX, addr, addr, APP_IDX,
+						   bind_ids[i], &status);
+		if (err || status) {
+			LOG_WRN("Bind modelu 0x%04x na LPN nieudany (err %d, status %d)",
+				bind_ids[i], err, status);
+			return err ? err : -EIO;
+		}
+	}
+
+	/* Sensor Server LPN publikuje pomiary na Frienda. */
+	struct bt_mesh_cfg_cli_mod_pub pub = {
+		.addr = FRIEND_ADDR,
+		.app_idx = APP_IDX,
+		.ttl = 7,
+		.period = 0,
+		.transmit = BT_MESH_TRANSMIT(0, 30),
+	};
+
+	err = bt_mesh_cfg_cli_mod_pub_set(NET_IDX, addr, addr,
+					  BT_MESH_MODEL_ID_SENSOR_SRV, &pub, &status);
+	if (err || status) {
+		LOG_WRN("Publikacja Sensor Srv na LPN nieudana (err %d, status %d)",
+			err, status);
+		return err ? err : -EIO;
+	}
+
+	/* Oznacz wezel jako skonfigurowany w bazie. */
+	struct bt_mesh_cdb_node *node = bt_mesh_cdb_node_get(addr);
+	if (node) {
+		atomic_set_bit(node->flags, BT_MESH_CDB_NODE_CONFIGURED);
+	}
+
+	return 0;
+}
+
+/* Dedykowany watek konfiguracji. Czeka na sygnal z node_added, odczekuje chwile
+ * na domkniecie linku PB-ADV, po czym z ponawianiem konfiguruje LPN. Blokujace
+ * wywolania Config Client biegna TU, a nie na system workqueue, dzieki czemu
+ * syswq (SAR-TX, obsluga beaconow, re-provisioning) dziala rownolegle. */
+static void config_thread(void *p1, void *p2, void *p3)
+{
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
+	while (1) {
+		k_sem_take(&sem_node_added, K_FOREVER);
+
+		/* Daj czas na domkniecie linku provisioningu, zanim ruszy config. */
+		k_sleep(LPN_CFG_DELAY);
+
+		uint16_t addr = provisioned_lpn_addr;
+		int err = -EIO;
+
+		/* Nie konfiguruj drugi raz, jesli wezel jest juz oznaczony w CDB
+		 * (np. friendship nawiazany ponownie bez restartu LPN). */
+		struct bt_mesh_cdb_node *cfg_node = bt_mesh_cdb_node_get(addr);
+		if (cfg_node &&
+		    atomic_test_bit(cfg_node->flags, BT_MESH_CDB_NODE_CONFIGURED)) {
+			LOG_INF("LPN 0x%04x juz skonfigurowany - pomijam", addr);
+			continue;
+		}
+
+		for (int attempt = 1; attempt <= LPN_CFG_RETRIES && err; attempt++) {
+			LOG_INF("Zdalna konfiguracja LPN 0x%04x (proba %d/%d)...",
+				addr, attempt, LPN_CFG_RETRIES);
+			err = configure_lpn(addr);
+		}
+
+		if (err) {
+			LOG_ERR("Konfiguracja LPN 0x%04x nieudana ostatecznie (err %d)",
+				addr, err);
+			if (lpn_in_friendship) {
+				LOG_ERR("PRZYCZYNA: LPN nawiazal friendship i SPI - nie "
+					"odbiera segmentow. LPN musi zostac pelnym wezlem "
+					"do konca konfiguracji.");
+			} else {
+				LOG_ERR("LPN nie odpowiada mimo ze NIE spi - sprawdz zasieg "
+					"i log strony LPN (SAR discard?).");
+			}
+			continue;
+		}
+
+		LOG_INF("LPN 0x%04x skonfigurowany - publikuje na 0x%04x",
+			addr, FRIEND_ADDR);
+	}
+}
+
+#define CONFIG_THREAD_STACK	2560
+#define CONFIG_THREAD_PRIO	7
+K_THREAD_DEFINE(config_tid, CONFIG_THREAD_STACK, config_thread, NULL, NULL, NULL,
+		CONFIG_THREAD_PRIO, 0, 0);
+
+/* Provisioning nie zakonczyl sie w czasie - zwolnij blokade do ponowienia. */
+static void prov_watchdog_handler(struct k_work *work)
+{
+	if (prov_in_progress) {
+		LOG_WRN("Provisioning LPN nie zakonczyl sie w czasie - ponowie przy kolejnym beaconie");
+		prov_in_progress = false;
+	}
+}
+
+/* Odebrano beacon nieprovisionowanego urzadzenia. */
+static void unprovisioned_beacon(uint8_t uuid[16], bt_mesh_prov_oob_info_t oob_info,
+				 uint32_t *uri_hash)
+{
+	/* Reaguj tylko na nasz LPN - obce urzadzenia ignorujemy. */
+	if (memcmp(uuid, lpn_uuid, 16) != 0) {
+		return;
+	}
+
+	if (prov_in_progress) {
+		return;
+	}
+
+	/* LPN sie zrestartowal i oglasza sie od nowa (stateless) - usun stary
+	 * wpis z CDB i wyczysc RPL, zanim sprovisionujemy go ponownie na 0x0002. */
+	struct bt_mesh_cdb_node *old = cdb_node_by_uuid(uuid);
+	if (old) {
+		LOG_INF("LPN 0x%04x wrocil - ponowny provisioning", old->addr);
+		bt_mesh_cdb_node_del(old, false);
+		bt_mesh_rpl_clear();
+	}
+
+	prov_in_progress = true;
+
+	int err = bt_mesh_provision_adv(uuid, NET_IDX, LPN_ADDR, 0);
+	if (err) {
+		LOG_ERR("Provisioning LPN nieudany (err %d)", err);
+		prov_in_progress = false;
+	} else {
+		LOG_INF("Rozpoczeto provisioning LPN -> 0x%04x", LPN_ADDR);
+		/* Uzbroj watchdog na wypadek, gdyby provisioning nie doszedl do konca. */
+		k_work_reschedule(&prov_watchdog_work, PROV_WATCHDOG);
+	}
+}
+
+/* Provisioning LPN zakonczony - konfiguruj OD RAZU, zanim wezel wejdzie w LPN. */
+static void node_added(uint16_t net_idx, uint8_t uuid[16], uint16_t addr,
+		       uint8_t num_elem)
+{
+	LOG_INF("LPN sprovisionowany @ 0x%04x (elementow: %u) - konfiguruje",
+		addr, num_elem);
+
+	k_work_cancel_delayable(&prov_watchdog_work);
+	prov_in_progress = false;
+	provisioned_lpn_addr = addr;
+	/* Obudz watek konfiguracji (blokujacy Config Client poza system workqueue). */
+	k_sem_give(&sem_node_added);
+}
+
+/* Konfiguracja roli podczas provisioningu (Friend = provisioner). */
 static const struct bt_mesh_prov prov = {
 	.uuid = dev_uuid,
+	.unprovisioned_beacon = unprovisioned_beacon,
+	.node_added = node_added,
 };
 
 /* Callbacki dla Friendship */
 static void friend_established(uint16_t net_idx, uint16_t lpn_addr,
 			       uint8_t recv_delay, uint32_t polltimeout)
 {
-	LOG_INF("Friendship z LPN nawiazany");
+	LOG_INF("Friendship z LPN 0x%04x nawiazany", lpn_addr);
+	lpn_in_friendship = true;
 
 	k_work_cancel_delayable(&blink_work);
-	gpio_pin_set_dt(&led, 1); 
+	gpio_pin_set_dt(&led, 1);
+
+	/* Konfiguracji tu NIE robimy - w tym momencie LPN juz spi i nie ACK-uje
+	 * segmentow. Konfiguracja odbyla sie wczesniej, w node_added. Jesli
+	 * friendship nawiazal sie, ZANIM LPN zostal skonfigurowany, to znak ze na
+	 * LPN dziala zla firmware (usypia za wczesnie) - segmentowana konfiguracja
+	 * juz nie przejdzie. */
+	struct bt_mesh_cdb_node *node = bt_mesh_cdb_node_get(lpn_addr);
+	if (node && !atomic_test_bit(node->flags, BT_MESH_CDB_NODE_CONFIGURED)) {
+		LOG_WRN("Friendship PRZED zakonczeniem konfiguracji - LPN uspil sie za "
+			"wczesnie (zla firmware LPN?). Konfiguracja segmentowana nie przejdzie.");
+	}
 }
 
 static void friend_terminated(uint16_t net_idx, uint16_t lpn_addr)
 {
 	LOG_WRN("Friendship z LPN 0x%04x zerwana", lpn_addr);
+	lpn_in_friendship = false;
 
-	k_work_reschedule(&blink_work, K_NO_WAIT); 
+	k_work_reschedule(&blink_work, K_NO_WAIT);
 
 	/* Wyczysc RPL */
 	bt_mesh_rpl_clear();
@@ -197,6 +461,10 @@ static int bt_ready(void)
 	int err;
 
 	/* Wypisz klucze do sniffowania */
+	/* Marker firmware: jesli tej linii NIE ma w logu, dziala stary build Frienda
+	 * (bez diagnostyki usypiania LPN). */
+	LOG_INF("FW Friend: real-provisioning (config w node_added + diagnostyka)");
+
 	LOG_INF("=== KLUCZE DO SNIFFOWANIA (Wireshark), IV index = 0 ===");
 	log_sniff_key("NetKey", net_key);
 	log_sniff_key("AppKey", app_key);
@@ -213,7 +481,18 @@ static int bt_ready(void)
 
 	LOG_INF("BLE Mesh initialized");
 
-	/* reczny provisioning, sztuczne odtworzenie efektu koncowego normalnego provisioningu */
+	/* Wydluz timeout Config Client - konfiguracja LPN idzie przez Friend Poll. */
+	bt_mesh_cfg_cli_timeout_set(LPN_CFG_TIMEOUT_MS);
+
+	/* Utworz siec w bazie provisionera (CDB). Trzyma provisionowane wezly i
+	 * ich DevKey; zyje w RAM (BT_SETTINGS=n), wiec powstaje od nowa po restarcie. */
+	err = bt_mesh_cdb_create(net_key);
+	if (err && err != -EALREADY) {
+		LOG_ERR("Utworzenie CDB nieudane (err %d)", err);
+		return err;
+	}
+
+	/* Friend jako provisioner sam wchodzi do wlasnej sieci na staly adres. */
 	err = bt_mesh_provision(net_key, NET_IDX, 0, 0, FRIEND_ADDR, dev_key);
 	if (err) {
 		LOG_ERR("Self-provisioning nieudany (err %d)", err);
@@ -229,7 +508,7 @@ static int bt_ready(void)
 	if (err && err != -EALREADY) {
 		LOG_ERR("Wlaczenie Friend nieudane (err %d)", err);
 	} else {
-		LOG_INF("Friend wlaczony");
+		LOG_INF("Friend wlaczony (real provisioning)");
 	}
 
 
@@ -254,6 +533,7 @@ int main(void)
 	}
 
 	k_work_init_delayable(&blink_work, blink_handler);
+	k_work_init_delayable(&prov_watchdog_work, prov_watchdog_handler);
 
 	/* Inicjalizacja Bluetooth */
 	err = bt_enable(NULL);
