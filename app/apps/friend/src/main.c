@@ -160,6 +160,13 @@ static bool prov_in_progress;
 
 static struct k_work_delayable prov_watchdog_work;
 
+/* Cykliczny zrzut licznikow komunikacji stosu (CONFIG_BT_MESH_STATISTIC).
+ * tx_friend_planned vs tx_friend_succeeded pokazuje, ile wiadomosci Friend
+ * probowal dostarczyc LPN-owi vs ile faktycznie zeszlo - mierzalny odpowiednik
+ * ostrzezenia LPN "No response from Friend". */
+#define STAT_DUMP_INTERVAL	K_SECONDS(60)
+static struct k_work_delayable stat_dump_work;
+
 /* Konfiguracja LPN idzie z DEDYKOWANEGO watku, nie z system workqueue. Blokujace
  * wywolania Config Client (bt_mesh_cfg_cli_*) czekaja do 15 s na odpowiedz; gdyby
  * biegly na syswq, blokowalyby retransmisje SAR-TX oraz obsluge kolejnego
@@ -317,6 +324,21 @@ static void config_thread(void *p1, void *p2, void *p3)
 K_THREAD_DEFINE(config_tid, CONFIG_THREAD_STACK, config_thread, NULL, NULL, NULL,
 		CONFIG_THREAD_PRIO, 0, 0);
 
+/* Cykliczny zrzut licznikow komunikacji. Body pod #if, bo bt_mesh_stat_get
+ * jest kompilowane tylko z CONFIG_BT_MESH_STATISTIC (CMake ifdef). */
+static void stat_dump_work_handler(struct k_work *work)
+{
+#if defined(CONFIG_BT_MESH_STATISTIC)
+	struct bt_mesh_statistic st;
+
+	bt_mesh_stat_get(&st);
+	LOG_INF("Stat: rx_adv=%u | tx_friend plan=%u ok=%u | tx_local plan=%u ok=%u",
+		st.rx_adv, st.tx_friend_planned, st.tx_friend_succeeded,
+		st.tx_local_planned, st.tx_local_succeeded);
+#endif
+	k_work_reschedule(&stat_dump_work, STAT_DUMP_INTERVAL);
+}
+
 /* Provisioning nie zakonczyl sie w czasie - zwolnij blokade do ponowienia. */
 static void prov_watchdog_handler(struct k_work *work)
 {
@@ -386,7 +408,8 @@ static const struct bt_mesh_prov prov = {
 static void friend_established(uint16_t net_idx, uint16_t lpn_addr,
 			       uint8_t recv_delay, uint32_t polltimeout)
 {
-	LOG_INF("Friendship z LPN 0x%04x nawiazany", lpn_addr);
+	LOG_INF("Friendship z LPN 0x%04x nawiazany: recv_delay=%u ms, poll_timeout=%u ms",
+		lpn_addr, recv_delay, polltimeout);
 	lpn_in_friendship = true;
 
 	k_work_cancel_delayable(&blink_work);
@@ -406,7 +429,8 @@ static void friend_established(uint16_t net_idx, uint16_t lpn_addr,
 
 static void friend_terminated(uint16_t net_idx, uint16_t lpn_addr)
 {
-	LOG_WRN("Friendship z LPN 0x%04x zerwana", lpn_addr);
+	LOG_WRN("Friendship z LPN 0x%04x zerwana - czekam na ponowny Friend Request",
+		lpn_addr);
 	lpn_in_friendship = false;
 
 	k_work_reschedule(&blink_work, K_NO_WAIT);
@@ -416,9 +440,18 @@ static void friend_terminated(uint16_t net_idx, uint16_t lpn_addr)
 	LOG_INF("Wyczyszczono RPL");
 }
 
+/* LPN odpytal Frienda (Friend Poll). Wolane na KAZDY Poll (takze tuz przed
+ * established). Pokazuje kadencje odpytywania i ze kierunek LPN->Friend zyje -
+ * uzupelnienie ostrzezenia LPN "No response from Friend during ReceiveWindow". */
+static void friend_polled(uint16_t net_idx, uint16_t lpn_addr)
+{
+	LOG_INF("Friend Poll <- LPN 0x%04x", lpn_addr);
+}
+
 BT_MESH_FRIEND_CB_DEFINE(friend_cb) = {
 	.established = friend_established,
 	.terminated = friend_terminated,
+	.polled = friend_polled,
 };
 
 /* Konfiguracja lokalna */
@@ -534,6 +567,7 @@ int main(void)
 
 	k_work_init_delayable(&blink_work, blink_handler);
 	k_work_init_delayable(&prov_watchdog_work, prov_watchdog_handler);
+	k_work_init_delayable(&stat_dump_work, stat_dump_work_handler);
 
 	/* Inicjalizacja Bluetooth */
 	err = bt_enable(NULL);
@@ -551,6 +585,9 @@ int main(void)
 
 	/* LED zapalony na stale = wezel dziala i jest w sieci. */
 	gpio_pin_set_dt(&led, 1);
+
+	/* Rusz cykliczny zrzut licznikow komunikacji. */
+	k_work_reschedule(&stat_dump_work, STAT_DUMP_INTERVAL);
 
 	return 0;
 }
