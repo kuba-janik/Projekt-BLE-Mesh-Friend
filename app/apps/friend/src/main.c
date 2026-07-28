@@ -365,7 +365,23 @@ static void unprovisioned_beacon(uint8_t uuid[16], bt_mesh_prov_oob_info_t oob_i
 	 * wpis z CDB i wyczysc RPL, zanim sprovisionujemy go ponownie na 0x0002. */
 	struct bt_mesh_cdb_node *old = cdb_node_by_uuid(uuid);
 	if (old) {
-		LOG_INF("LPN 0x%04x wrocil - ponowny provisioning", old->addr);
+		uint16_t old_addr = old->addr;
+
+		LOG_INF("LPN 0x%04x wrocil - ponowny provisioning", old_addr);
+
+		/* Zerwij stary friendship. Bez tego 0x%04x wciaz "nalezy" do Frienda
+		 * jako uspiony LPN, wiec AppKey Add laduje TYLKO w Friend Queue (PDU do
+		 * wlasnego LPN nie ida w eter) i nowa, pelna instancja go nie odbierze
+		 * -> konfiguracja pada z -116 az stary friendship wygasnie (~60 s). */
+		int terr = bt_mesh_friend_terminate(old_addr);
+		if (terr == 0) {
+			LOG_INF("Zerwano stary friendship z LPN 0x%04x - adres wolny",
+				old_addr);
+		} else {
+			LOG_INF("Brak aktywnego friendship z LPN 0x%04x (err %d)",
+				old_addr, terr);
+		}
+
 		bt_mesh_cdb_node_del(old, false);
 		bt_mesh_rpl_clear();
 	}
