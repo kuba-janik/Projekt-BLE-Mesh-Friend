@@ -143,6 +143,13 @@ int model_handler_publish_temp(void)
 	return err;
 }
 
+bool model_handler_is_configured(void)
+{
+	/* mod_pub_set (ostatni krok konfiguracji Frienda) ustawia adres publikacji
+	 * Sensor Servera. Dopoki jest UNASSIGNED, konfiguracja nie jest kompletna. */
+	return sensor_srv.pub.addr != BT_MESH_ADDR_UNASSIGNED;
+}
+
 const struct bt_mesh_comp *model_handler_init(void)
 {
 	if (!device_is_ready(sensor_dev)) {

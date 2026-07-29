@@ -15,15 +15,15 @@ LOG_MODULE_REGISTER(lpn_node, LOG_LEVEL_INF);
  * podczas provisioningu - nic nie jest juz wpisane na sztywno. */
 static const uint8_t dev_uuid[16] = { 0x1b, 0x7a, 0x0c, 0x54 };
 
-/* Index aplikacji - uzywany do wykrycia, czy Friend dodal juz AppKey. */
-#define APP_IDX		0x0000
-
-/* Wejscie w tryb LPN dopiero PO konfiguracji. Poki Friend konfiguruje (AppKey,
- * bind, publikacja), wezel MUSI byc pelnym wezlem, bo LPN nie ACK-uje segmentow.
- * Wykrywamy konfiguracje przez pojawienie sie AppKey, potem dajemy chwile na
- * dokonczenie bindow/publikacji i dopiero wtedy wlaczamy LPN. */
-#define CONFIG_POLL_INTERVAL	K_SECONDS(2)	/* jak czesto sprawdzac AppKey */
-#define CONFIG_SETTLE_DELAY	K_SECONDS(5)	/* zapas na bind + publikacje */
+/* Wejscie w tryb LPN dopiero PO PELNEJ konfiguracji. Poki Friend konfiguruje
+ * (AppKey, bind, publikacja), wezel MUSI byc pelnym, skanujacym wezlem - inaczej
+ * (a) nie ACK-uje segmentow, (b) nawiazywanie friendship koliduje na radiu z
+ * trwajaca konfiguracja. Zakonczenie wykrywamy po USTAWIENIU adresu publikacji
+ * Sensor Servera - to OSTATNI krok Frienda (mod_pub_set), wiec jego pojawienie
+ * sie oznacza, ze przeszly juz AppKey i bindy (takze przez ewentualne retry).
+ * Wczesniejsze wykrywanie po samym AppKey usypialo wezel w srodku konfiguracji. */
+#define CONFIG_POLL_INTERVAL	K_SECONDS(2)	/* jak czesto sprawdzac stan konfiguracji */
+#define CONFIG_SETTLE_DELAY	K_SECONDS(2)	/* krotki zapas po ostatnim kroku */
 
 static struct k_work_delayable lpn_start_work;
 static bool config_detected;
@@ -46,21 +46,21 @@ static void sensor_read_work_handler(struct k_work *work)
 	k_work_reschedule(&sensor_read_work, SENSOR_READ_INTERVAL);
 }
 
-/* Czeka az Friend skonfiguruje wezel, potem wlacza tryb LPN. Poki AppKey sie nie
- * pojawi - odpytuje co CONFIG_POLL_INTERVAL (wezel caly czas pelny, ACK-uje
- * segmenty). Po wykryciu AppKey czeka CONFIG_SETTLE_DELAY na dokonczenie bindow
- * i publikacji, a nastepnie przechodzi w LPN. */
+/* Czeka az Friend skonfiguruje wezel, potem wlacza tryb LPN. Poki konfiguracja
+ * nie jest KOMPLETNA (adres publikacji Sensor Servera nieustawiony) - odpytuje co
+ * CONFIG_POLL_INTERVAL, pozostajac pelnym, skanujacym wezlem. Po jej zakonczeniu
+ * czeka krotki CONFIG_SETTLE_DELAY i przechodzi w LPN. */
 static void lpn_start_handler(struct k_work *work)
 {
 	if (!config_detected) {
-		if (!bt_mesh_app_key_exists(APP_IDX)) {
-			/* Jeszcze nieskonfigurowany - pytaj dalej. */
+		if (!model_handler_is_configured()) {
+			/* Konfiguracja jeszcze niekompletna - pytaj dalej. */
 			k_work_reschedule(&lpn_start_work, CONFIG_POLL_INTERVAL);
 			return;
 		}
 
 		config_detected = true;
-		LOG_INF("Friend dodal AppKey - czekam na dokonczenie konfiguracji");
+		LOG_INF("Konfiguracja zakonczona (publikacja ustawiona) - za chwile LPN");
 		k_work_reschedule(&lpn_start_work, CONFIG_SETTLE_DELAY);
 		return;
 	}

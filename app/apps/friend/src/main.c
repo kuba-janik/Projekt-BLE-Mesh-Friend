@@ -149,9 +149,10 @@ static bool prov_in_progress;
  * po jej zakonczeniu (15 s ciszy) sam wejdzie w LPN - juz skonfigurowany. */
 #define LPN_CFG_DELAY		K_SECONDS(2)
 #define LPN_CFG_RETRIES		3
-/* Zapas timeoutu Config Client (domyslne ~5 s zwykle wystarcza dla obudzonego
- * wezla, ale zostawiamy margines). */
-#define LPN_CFG_TIMEOUT_MS	15000
+/* Timeout Config Client. LPN jest pelnym, obudzonym wezlem podczas konfiguracji
+ * i odpowiada szybko, wiec 5 s wystarcza. Krotszy timeout = zgubiona odpowiedz
+ * ponawia sie po 5 s (kolejna proba), a nie po 15 s. */
+#define LPN_CFG_TIMEOUT_MS	5000
 
 /* Watchdog provisioningu: jesli po tym czasie nie przyjdzie node_added,
  * zwalniamy prov_in_progress, zeby kolejny beacon mogl ponowic probe. Bez tego
