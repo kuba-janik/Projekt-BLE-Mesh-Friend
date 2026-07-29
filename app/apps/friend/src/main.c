@@ -13,6 +13,13 @@ LOG_MODULE_REGISTER(node_friend, LOG_LEVEL_INF);
 /* Czyszczenie Replay Protection List */
 extern void bt_mesh_rpl_clear(void);
 
+/* Reset kontekstow odbioru segmentow (seg_rx). API wewnetrzne stosu
+ * (subsys/bluetooth/mesh/transport.h), niedostepne w publicznych naglowkach -
+ * deklarujemy recznie, tak samo jak bt_mesh_rpl_clear(). Zeruje seq_auth
+ * wszystkich slotow seg_rx, co jest konieczne, gdy wraca zrestartowany LPN
+ * o tym samym adresie, ale z sekwencja liczona od nowa. */
+extern void bt_mesh_rx_reset(void);
+
 #define LED_NODE	DT_ALIAS(led0)
 
 
@@ -139,20 +146,15 @@ static uint16_t provisioned_lpn_addr;
  * (beacony przychodza cyklicznie). */
 static bool prov_in_progress;
 
-/* Zdalna konfiguracja idzie po provisioningu (node_added), gdy LPN jest jeszcze
- * normalnym, skanujacym wezlem - tylko wtedy odsyla Segment ACK dla segmentowanego
- * AppKey Add. W trybie LPN wezel z zasady NIE ACK-uje ("Not sending ack when LPN
- * is enabled") -> segmentowana konfiguracja jest niemozliwa. Konfigurowanie po
- * nawiazaniu friendship jest ZA POZNO (friendship == LPN juz spi). O tym, kiedy
- * zasnac, decyduje sam LPN - czeka na ustawienie adresu publikacji Sensor Servera
- * (ostatni krok ponizszej sekwencji), wiec nie zasnie w trakcie konfiguracji.
- *
- * LPN_CFG_DELAY: zwloka przed PIERWSZA proba. node_added odpala sie, gdy skonczyl
- * PROVISIONER, ale LPN jeszcze domyka link PB-ADV i wraca do normalnego skanowania.
- * Przy 2 s pierwsze dwie proby szly w prozne (zero Segment ACK -> ETIMEDOUT) i
- * dopiero trzecia przechodzila w ~0,5 s. Dajemy wezlowi czas na dojscie do siebie -
- * jedna udana proba jest szybsza niz dwie nieudane po 5 s kazda. */
-#define LPN_CFG_DELAY		K_SECONDS(6)
+/* Zdalna konfiguracja MUSI ruszyc zaraz po provisioningu (node_added), gdy LPN
+ * jest jeszcze normalnym, skanujacym wezlem - tylko wtedy odsyla Segment ACK dla
+ * segmentowanego AppKey Add. W trybie LPN wezel z zasady NIE ACK-uje ("Not
+ * sending ack when LPN is enabled") -> segmentowana konfiguracja jest niemozliwa.
+ * Konfigurowanie po nawiazaniu friendship jest ZA POZNO (friendship == LPN juz
+ * spi). Krotka zwloka daje czas na domkniecie linku PB-ADV. Kazda odebrana
+ * wiadomosc resetuje timer LPN_AUTO, wiec LPN nie zasnie w trakcie konfiguracji;
+ * po jej zakonczeniu (15 s ciszy) sam wejdzie w LPN - juz skonfigurowany. */
+#define LPN_CFG_DELAY		K_SECONDS(2)
 #define LPN_CFG_RETRIES		3
 /* Timeout Config Client. LPN jest pelnym, obudzonym wezlem podczas konfiguracji
  * i odpowiada szybko, wiec 5 s wystarcza. Krotszy timeout = zgubiona odpowiedz
@@ -390,6 +392,18 @@ static void unprovisioned_beacon(uint8_t uuid[16], bt_mesh_prov_oob_info_t oob_i
 
 		bt_mesh_cdb_node_del(old, false);
 		bt_mesh_rpl_clear();
+
+		/* Wyczysc konteksty ODBIORU segmentow. Krytyczne: Friend trzyma slot
+		 * seg_rx dla src=0x0002 z WYSOKIM seq_auth starej instancji LPN.
+		 * Zrestartowany LPN startuje od seq blisko 0, wiec jego segmentowana
+		 * odpowiedz (Model Publication Status, 14 B = 2 segmenty) jest odrzucana
+		 * jako "Ignoring old SeqAuth" (transport.c:1401) - dopasowanie w
+		 * seg_rx_find dziala nawet dla slotow NIE w uzyciu. Skutek: konfiguracja
+		 * fizycznie sie udaje (LPN publikuje!), ale Friend nie dostaje Statusu,
+		 * konczy z -116 i ponawia do juz spiacego LPN. bt_mesh_rpl_clear() tego
+		 * NIE czysci - to osobny cache niz RPL. */
+		bt_mesh_rx_reset();
+		LOG_INF("Wyczyszczono konteksty seg_rx (stary seq_auth LPN)");
 	}
 
 	prov_in_progress = true;
