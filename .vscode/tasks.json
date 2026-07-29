@@ -4,7 +4,7 @@
         {
             "label": "Build: Friend",
             "type": "shell",
-            "command": "west build -b nrf52840dongle/nrf52840 -p auto -d build/friend app/apps/friend",
+            "command": "west build -b nrf52840dongle/nrf52840 -p always -d build/friend app/apps/friend",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -21,7 +21,7 @@
         {
             "label": "Build: LPN",
             "type": "shell",
-            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p auto -d build/lpn app/apps/lpn",
+            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p always -d build/lpn app/apps/lpn",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -38,7 +38,7 @@
         {
             "label": "Build: LPN Mock",
             "type": "shell",
-            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p auto -d build/lpn_mock app/apps/lpn_mock",
+            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p always -d build/lpn_mock app/apps/lpn_mock",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -55,7 +55,7 @@
         {
             "label": "Build: Baseline",
             "type": "shell",
-            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p auto -d build/baseline app/apps/baseline",
+            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p always -d build/baseline app/apps/baseline",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
