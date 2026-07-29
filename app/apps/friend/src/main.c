@@ -179,7 +179,15 @@ static bool prov_in_progress;
  * czas na dojscie do siebie - jedna udana proba jest szybsza niz dwie nieudane po
  * 5 s kazda. */
 #define LPN_CFG_DELAY		K_SECONDS(6)
-#define LPN_CFG_RETRIES		3
+/* LPN_CFG_RETRIES: martwe okno po provisioningu jest NIEDETERMINISTYCZNE - w
+ * pomiarach LPN stawal sie responsywny raz w ~t+2 s, a raz dopiero ~t+11 s, przy
+ * identycznym kodzie (jego log jest w tym czasie calkowicie milczacy, a stos ma
+ * wlaczone ciagle skanowanie - lpn.c:1197 - wiec segmenty po prostu nie dochodza:
+ * warunki radiowe). Przy nieprzewidywalnym oknie SONDOWANIE CZESCIEJ bije czekanie
+ * dluzej, dlatego zwiekszamy liczbe prob, a nie zwloke: 5 prob x 5 s pokrywa do
+ * ~t+31 s (bylo ~t+21 s). Nieudana proba i tak konczy sie szybko (SAR poddaje sie
+ * po ~4 s), a udana schodzi w ~0,5 s. */
+#define LPN_CFG_RETRIES		5
 /* Timeout Config Client. LPN jest pelnym, obudzonym wezlem podczas konfiguracji
  * i odpowiada szybko, wiec 5 s wystarcza. Krotszy timeout = zgubiona odpowiedz
  * ponawia sie po 5 s (kolejna proba), a nie po 15 s. */
