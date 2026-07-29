@@ -23,8 +23,15 @@ static const uint8_t dev_uuid[16] = { 0x1b, 0x7a, 0x0c, 0x54 };
  * Sensor Servera - to OSTATNI krok Frienda (mod_pub_set), wiec jego pojawienie
  * sie oznacza, ze przeszly juz AppKey i bindy (takze przez ewentualne retry).
  * Wczesniejsze wykrywanie po samym AppKey usypialo wezel w srodku konfiguracji. */
+/* SETTLE musi przezyc RETRY FRIENDA, nie tylko ostatni krok. Adres publikacji
+ * ustawia sie w momencie PRZETWORZENIA mod_pub_set - czyli ZANIM Friend dostanie
+ * odpowiedz Status. Gdy ten Status zaginie w eterze, Friend widzi -ETIMEDOUT i
+ * ponawia cala konfiguracje (do 2 x 5 s), a my w tym czasie NIE mozemy juz spac -
+ * inaczej ponowienia trafiaja w spiacy wezel. 8 s pokrywa ten budzet retry.
+ * Koszt: kilka sekund pelnego skanowania TYLKO przy dolaczaniu, nie w stanie
+ * ustalonym (referencyjny projekt trzymal tu na sztywno 10 s). */
 #define CONFIG_POLL_INTERVAL	K_SECONDS(2)	/* jak czesto sprawdzac stan konfiguracji */
-#define CONFIG_SETTLE_DELAY	K_SECONDS(2)	/* krotki zapas po ostatnim kroku */
+#define CONFIG_SETTLE_DELAY	K_SECONDS(8)	/* zapas na retry Frienda po zgubionym Status */
 
 static struct k_work_delayable lpn_start_work;
 static bool config_detected;
@@ -50,7 +57,7 @@ static void sensor_read_work_handler(struct k_work *work)
 /* Czeka az Friend skonfiguruje wezel, potem wlacza tryb LPN. Poki konfiguracja
  * nie jest KOMPLETNA (adres publikacji Sensor Servera nieustawiony) - odpytuje co
  * CONFIG_POLL_INTERVAL, pozostajac pelnym, skanujacym wezlem. Po jej zakonczeniu
- * czeka krotki CONFIG_SETTLE_DELAY i przechodzi w LPN. */
+ * czeka CONFIG_SETTLE_DELAY i przechodzi w LPN. */
 static void lpn_start_handler(struct k_work *work)
 {
 	if (!config_detected) {

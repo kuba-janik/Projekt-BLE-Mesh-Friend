@@ -13,13 +13,6 @@ LOG_MODULE_REGISTER(node_friend, LOG_LEVEL_INF);
 /* Czyszczenie Replay Protection List */
 extern void bt_mesh_rpl_clear(void);
 
-/* Reset kontekstow odbioru segmentow (seg_rx). API wewnetrzne stosu
- * (subsys/bluetooth/mesh/transport.h), niedostepne w publicznych naglowkach -
- * deklarujemy recznie, tak samo jak bt_mesh_rpl_clear(). Zeruje seq_auth
- * wszystkich slotow seg_rx, co jest konieczne, gdy wraca zrestartowany LPN
- * o tym samym adresie, ale z sekwencja liczona od nowa. */
-extern void bt_mesh_rx_reset(void);
-
 #define LED_NODE	DT_ALIAS(led0)
 
 
@@ -108,8 +101,26 @@ static void sensor_cli_data_cb(struct bt_mesh_sensor_cli *cli,
 			       const struct bt_mesh_sensor_type *sensor,
 			       const struct bt_mesh_sensor_value *value)
 {
-	if (sensor->id == bt_mesh_sensor_present_amb_temp.id) {
-		LOG_INF("Temperatura: %s C", bt_mesh_sensor_ch_str(value));
+	if (sensor->id != bt_mesh_sensor_present_amb_temp.id) {
+		return;
+	}
+
+	LOG_INF("Temperatura: %s C", bt_mesh_sensor_ch_str(value));
+
+	/* ODEBRANA I ODSZYFROWANA publikacja z LPN jest DOWODEM, ze konfiguracja
+	 * sie udala: wymaga jednoczesnie AppKey na LPN, bindu do Sensor Servera
+	 * ORAZ ustawionego adresu publikacji. Bierzemy to za potwierdzenie, bo
+	 * odpowiedz Status ostatniego kroku konfiguracji moze zaginac w eterze -
+	 * wtedy Config Client zwraca -ETIMEDOUT, mimo ze wezel polecenie wykonal.
+	 * Bez tego Friend ponawia konfiguracje do juz spiacego LPN i konczy
+	 * falszywym bledem. */
+	if (ctx->addr != LPN_ADDR) {
+		return;
+	}
+
+	struct bt_mesh_cdb_node *node = bt_mesh_cdb_node_get(ctx->addr);
+	if (node && !atomic_test_and_set_bit(node->flags, BT_MESH_CDB_NODE_CONFIGURED)) {
+		LOG_INF("LPN 0x%04x publikuje - konfiguracja potwierdzona", ctx->addr);
 	}
 }
 
@@ -302,10 +313,33 @@ static void config_thread(void *p1, void *p2, void *p3)
 			continue;
 		}
 
+		bool confirmed = false;
+
 		for (int attempt = 1; attempt <= LPN_CFG_RETRIES && err; attempt++) {
 			LOG_INF("Zdalna konfiguracja LPN 0x%04x (proba %d/%d)...",
 				addr, attempt, LPN_CFG_RETRIES);
 			err = configure_lpn(addr);
+
+			/* Sprawdzaj flage MIEDZY probami: mogla zostac ustawiona z
+			 * zewnatrz przez odebrana publikacje z LPN (patrz
+			 * sensor_cli_data_cb). Zgubiony Status ostatniego kroku daje
+			 * -ETIMEDOUT, mimo ze wezel jest juz w pelni skonfigurowany i
+			 * zdazyl zasnac - dalsze proby trafialyby w spiacy wezel. */
+			if (err) {
+				cfg_node = bt_mesh_cdb_node_get(addr);
+				if (cfg_node && atomic_test_bit(cfg_node->flags,
+								BT_MESH_CDB_NODE_CONFIGURED)) {
+					LOG_INF("LPN 0x%04x potwierdzil konfiguracje publikacja "
+						"- przerywam ponawianie", addr);
+					confirmed = true;
+					break;
+				}
+			}
+		}
+
+		if (confirmed) {
+			/* Sukces potwierdzony publikacja - komunikat juz wypisany. */
+			continue;
 		}
 
 		if (err) {
@@ -392,18 +426,6 @@ static void unprovisioned_beacon(uint8_t uuid[16], bt_mesh_prov_oob_info_t oob_i
 
 		bt_mesh_cdb_node_del(old, false);
 		bt_mesh_rpl_clear();
-
-		/* Wyczysc konteksty ODBIORU segmentow. Krytyczne: Friend trzyma slot
-		 * seg_rx dla src=0x0002 z WYSOKIM seq_auth starej instancji LPN.
-		 * Zrestartowany LPN startuje od seq blisko 0, wiec jego segmentowana
-		 * odpowiedz (Model Publication Status, 14 B = 2 segmenty) jest odrzucana
-		 * jako "Ignoring old SeqAuth" (transport.c:1401) - dopasowanie w
-		 * seg_rx_find dziala nawet dla slotow NIE w uzyciu. Skutek: konfiguracja
-		 * fizycznie sie udaje (LPN publikuje!), ale Friend nie dostaje Statusu,
-		 * konczy z -116 i ponawia do juz spiacego LPN. bt_mesh_rpl_clear() tego
-		 * NIE czysci - to osobny cache niz RPL. */
-		bt_mesh_rx_reset();
-		LOG_INF("Wyczyszczono konteksty seg_rx (stary seq_auth LPN)");
 	}
 
 	prov_in_progress = true;
