@@ -1,8 +1,5 @@
-# Parametry aplikacji LPN Mock sterowane flaga build (-DCONFIG_...=...).
-#
-# Ten sam symbol co w aplikacji lpn (dla spojnosci sweepa z narzedzia
-# power-test). WZORZEC: dokladaj kolejne symbole i odczytuj je w kodzie
-# przez CONFIG_...; domyslne wartosci odwzorowuja dotychczasowe #define.
+# Parametry aplikacji LPN Mock sterowane flaga builda (-DCONFIG_...=...).
+# Te same symbole co w aplikacji lpn - dla spojnosci pomiarow.
 
 config LPN_SENSOR_INTERVAL_S
 	int "Interwal publikacji (fake) temperatury do Frienda [s]"
@@ -10,7 +7,6 @@ config LPN_SENSOR_INTERVAL_S
 	range 1 86400
 	help
 	  Odstep miedzy kolejnymi publikacjami Sensor Server -> Friend.
-	  Domyslnie 10 s (jak dotychczasowy #define SENSOR_READ_INTERVAL_S).
 	  Sterowane build-time: -DCONFIG_LPN_SENSOR_INTERVAL_S=<sekundy>.
 
 source "Kconfig.zephyr"

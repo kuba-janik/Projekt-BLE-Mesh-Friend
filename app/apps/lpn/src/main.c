@@ -10,34 +10,17 @@
 
 LOG_MODULE_REGISTER(lpn_node, LOG_LEVEL_INF);
 
-/* UUID rozglaszany w unprovisioned beacon. Friend provisionuje tylko wezel o
- * tym UUID. NetKey, adres unicast i DevKey przychodza od provisionera (Frienda)
- * podczas provisioningu - nic nie jest juz wpisane na sztywno. */
+/* UUID w unprovisioned beacon - Friend provisionuje tylko ten wezel */
 static const uint8_t dev_uuid[16] = { 0x1b, 0x7a, 0x0c, 0x54 };
 
-/* Wejscie w tryb LPN dopiero PO PELNEJ konfiguracji. Poki Friend konfiguruje
- * (AppKey, bind, publikacja), wezel MUSI byc pelnym, skanujacym wezlem - inaczej
- * (a) nie ACK-uje segmentow, (b) nawiazywanie friendship koliduje na radiu z
- * trwajaca konfiguracja. Zakonczenie wykrywamy po USTAWIENIU adresu publikacji
- * Sensor Servera - to OSTATNI krok Frienda (mod_pub_set), wiec jego pojawienie
- * sie oznacza, ze przeszly juz AppKey i bindy (takze przez ewentualne retry).
- * Wczesniejsze wykrywanie po samym AppKey usypialo wezel w srodku konfiguracji. */
-/* SETTLE musi przezyc RETRY FRIENDA, nie tylko ostatni krok. Adres publikacji
- * ustawia sie w momencie PRZETWORZENIA mod_pub_set - czyli ZANIM Friend dostanie
- * odpowiedz Status. Gdy ten Status zaginie w eterze, Friend widzi -ETIMEDOUT i
- * ponawia cala konfiguracje (do 2 x 5 s), a my w tym czasie NIE mozemy juz spac -
- * inaczej ponowienia trafiaja w spiacy wezel. 8 s pokrywa ten budzet retry.
- * Koszt: kilka sekund pelnego skanowania TYLKO przy dolaczaniu, nie w stanie
- * ustalonym (referencyjny projekt trzymal tu na sztywno 10 s). */
+/* W tryb LPN wchodzimy dopiero po konfiguracji - spiacy wezel nie ACK-uje segmentow */
 #define CONFIG_POLL_INTERVAL	K_SECONDS(2)	/* jak czesto sprawdzac stan konfiguracji */
 #define CONFIG_SETTLE_DELAY	K_SECONDS(8)	/* zapas na retry Frienda po zgubionym Status */
 
 static struct k_work_delayable lpn_start_work;
 static bool config_detected;
 
-/* Cykliczna publikacja temperatury. Interwal sterowany build-time przez
- * CONFIG_LPN_SENSOR_INTERVAL_S (patrz Kconfig; domyslnie 10 s). Fallback na
- * wypadek builda bez app-level Kconfig - zachowuje dotychczasowe 10 s. */
+/* Interwal publikacji temperatury - ustawiany flaga builda (patrz Kconfig) */
 #ifndef CONFIG_LPN_SENSOR_INTERVAL_S
 #define CONFIG_LPN_SENSOR_INTERVAL_S 10
 #endif
@@ -49,19 +32,16 @@ static void sensor_read_work_handler(struct k_work *work)
 {
 	model_handler_publish_temp();
 
-	/* Przeplanuj siebie -> odczyt i publikacja co SENSOR_READ_INTERVAL. */
+	/* Przeplanuj siebie - odczyt i publikacja co SENSOR_READ_INTERVAL */
 	k_work_reschedule(&sensor_read_work, SENSOR_READ_INTERVAL);
 }
 
-/* Czeka az Friend skonfiguruje wezel, potem wlacza tryb LPN. Poki konfiguracja
- * nie jest KOMPLETNA (adres publikacji Sensor Servera nieustawiony) - odpytuje co
- * CONFIG_POLL_INTERVAL, pozostajac pelnym, skanujacym wezlem. Po jej zakonczeniu
- * czeka CONFIG_SETTLE_DELAY i przechodzi w LPN. */
+/* Czeka az Friend skonfiguruje wezel, odczekuje zapas i wlacza tryb LPN */
 static void lpn_start_handler(struct k_work *work)
 {
 	if (!config_detected) {
 		if (!model_handler_is_configured()) {
-			/* Konfiguracja jeszcze niekompletna - pytaj dalej. */
+			/* Konfiguracja jeszcze niekompletna - pytaj dalej */
 			k_work_reschedule(&lpn_start_work, CONFIG_POLL_INTERVAL);
 			return;
 		}
@@ -72,7 +52,7 @@ static void lpn_start_handler(struct k_work *work)
 		return;
 	}
 
-	/* Konfiguracja gotowa - teraz mozna spac. */
+	/* Konfiguracja gotowa - teraz mozna spac */
 	int err = bt_mesh_lpn_set(true);
 	if (err) {
 		LOG_ERR("Wlaczenie LPN nieudane (err %d)", err);
@@ -81,8 +61,7 @@ static void lpn_start_handler(struct k_work *work)
 	}
 }
 
-/* Provisioning zakonczony - wezel dostal adres i klucze od Frienda. Rusza
- * odpytywanie o konfiguracje; tryb LPN wlaczymy dopiero po jej wykryciu. */
+/* Provisioning zakonczony - wezel ma adres i klucze, czekamy na konfiguracje */
 static void prov_complete(uint16_t net_idx, uint16_t addr)
 {
 	LOG_INF("Sprovisionowany przez Frienda - adres 0x%04x", addr);
@@ -101,7 +80,7 @@ static void lpn_established(uint16_t net_idx, uint16_t friend_addr,
 	LOG_INF("Friendship nawiazany z Friendem 0x%04x (queue %u, recv_window %u ms)",
 		friend_addr, queue_size, recv_window);
 
-	/* Wysyłanie pomiarów */
+	/* Rusz cykliczne wysylanie pomiarow */
 	k_work_reschedule(&sensor_read_work, K_NO_WAIT);
 }
 
@@ -109,13 +88,12 @@ static void lpn_terminated(uint16_t net_idx, uint16_t friend_addr)
 {
 	LOG_WRN("Friendship zerwany z Friendem 0x%04x", friend_addr);
 
-	/* Anuluj publikacje pomiarow, w przypadku zerwania friendship */
+	/* Brak Frienda - nie ma gdzie publikowac, wiec zatrzymaj pomiary */
 	k_work_cancel_delayable(&sensor_read_work);
 }
 
 static void lpn_polled(uint16_t net_idx, uint16_t friend_addr, bool retry)
 {
-	/* Logowanie Friend-Poll */
 	LOG_DBG("Poll do Frienda 0x%04x%s", friend_addr, retry ? " (retry)" : "");
 }
 
@@ -131,10 +109,7 @@ int main(void)
 
 	LOG_INF("Start wezla LPN (BTZ_EndDevice)");
 
-	/* Banner diagnostyczny: pokazuje REALNIE wkompilowane wartosci Kconfig.
-	 * Jesli LPN_AUTO=1, to znaczy ze prj.conf NIE wszedl (build bez -p always,
-	 * Kconfig z cache) - wezel bedzie zasypial za wczesnie i konfiguracja padnie.
-	 * MUSI byc: LPN_AUTO=0. */
+	/* Kontrola wkompilowanego Kconfig: LPN_AUTO=1 znaczy, ze prj.conf nie wszedl */
 	LOG_INF("KONFIG: LPN_AUTO=%d LOW_POWER=%d (wymagane LPN_AUTO=0)",
 		IS_ENABLED(CONFIG_BT_MESH_LPN_AUTO),
 		IS_ENABLED(CONFIG_BT_MESH_LOW_POWER));
@@ -148,7 +123,7 @@ int main(void)
 
 	LOG_INF("Bluetooth zainicjalizowany");
 
-	/* Inicjalizacja workow: publikacja pomiarow + wejscie w LPN po konfiguracji */
+	/* Worki: publikacja pomiarow oraz wejscie w LPN po konfiguracji */
 	k_work_init_delayable(&sensor_read_work, sensor_read_work_handler);
 	k_work_init_delayable(&lpn_start_work, lpn_start_handler);
 
@@ -158,10 +133,7 @@ int main(void)
 		return 1;
 	}
 
-	/* Wystaw unprovisioned beacon (PB-ADV) i czekaj, az Friend sprovisionuje
-	 * wezel i go zdalnie skonfiguruje (AppKey, bind, publikacja). Wejscie w tryb
-	 * LPN nastepuje RECZNIE po wykryciu konfiguracji (patrz lpn_start_handler),
-	 * a publikacja pomiarow rusza w lpn_established. */
+	/* Wystaw unprovisioned beacon i czekaj na provisioning od Frienda */
 	err = bt_mesh_prov_enable(BT_MESH_PROV_ADV);
 	if (err) {
 		LOG_ERR("Wlaczenie provisioningu (beacon) nieudane (err %d)", err);

@@ -16,12 +16,10 @@ static struct bt_mesh_health_srv health_srv = {
 
 BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
-/* Sensor Server - wersja MOCK: bez fizycznego STS4X i bez bramki zasilania.
- * Zwraca stala, sztuczna temperature. Wszystko inne (modele, publikacja,
- * wykrywanie konfiguracji) jest identyczne jak w apps/lpn. */
+/* Sensor Server wersja MOCK: bez STS4X i bez bramki zasilania, stala temperatura */
 #define MOCK_TEMP_MICRO_C 22500000   /* 22.5 C */
 
-/* Zwraca sfalszowana wartosc w formacie mesh Present Ambient Temperature. */
+/* Zwraca sztuczna wartosc w formacie mesh Present Ambient Temperature */
 static int temp_sample(struct bt_mesh_sensor_value *rsp)
 {
 	int err = bt_mesh_sensor_value_from_micro(
@@ -60,8 +58,7 @@ static struct bt_mesh_sensor *const sensors[] = {
 static struct bt_mesh_sensor_srv sensor_srv =
 	BT_MESH_SENSOR_SRV_INIT(sensors, ARRAY_SIZE(sensors));
 
-/* Kompozycja wezla - identyczna jak w apps/lpn (bez Config Client: wezel
- * konfiguruje Friend przez realny provisioning). */
+/* Kompozycja wezla - identyczna jak w apps/lpn */
 static const struct bt_mesh_elem elements[] = {
 	BT_MESH_ELEM(0,
 		BT_MESH_MODEL_LIST(
@@ -89,7 +86,7 @@ int model_handler_publish_temp(void)
 
 	LOG_INF("Temperatura: %s C", bt_mesh_sensor_ch_str(&val));
 
-	/* Publikacja wartosci czujnika. */
+	/* Publikacja wartosci czujnika do Frienda */
 	err = bt_mesh_sensor_srv_pub(&sensor_srv, NULL, &temp_sensor, &val);
 	if (err) {
 		LOG_DBG("Publikacja pominieta (err %d) - brak adresu publikacji?", err);
@@ -100,13 +97,12 @@ int model_handler_publish_temp(void)
 
 bool model_handler_is_configured(void)
 {
-	/* mod_pub_set (ostatni krok konfiguracji Frienda) ustawia adres publikacji
-	 * Sensor Servera. Dopoki jest UNASSIGNED, konfiguracja nie jest kompletna. */
+	/* Adres publikacji ustawia ostatni krok konfiguracji Frienda (mod_pub_set) */
 	return sensor_srv.pub.addr != BT_MESH_ADDR_UNASSIGNED;
 }
 
 const struct bt_mesh_comp *model_handler_init(void)
 {
-	/* Wersja mock - brak czujnika do inicjalizacji. */
+	/* Wersja mock - brak czujnika do inicjalizacji */
 	return &comp;
 }

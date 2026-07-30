@@ -1,10 +1,26 @@
 {
-    // Pozwol clangd odpytac kompilator arm-zephyr-eabi-gcc o jego naglowki
-    // systemowe (stdint.h, stddef.h itd.) - bez tego zostaja bledy na
-    // standardowych naglowkach. Sciezka zgodna z Zephyr SDK w kontenerze.
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.path": "/usr/bin/clangd",
+
     "clangd.arguments": [
-        "--query-driver=/home/dev/zephyr-sdk-*/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-*",
-        "--header-insertion=never",
-        "--background-index"
+        // "--query-driver=/home/dev/zephyr-sdk-*/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-*",
+        // "--header-insertion=never",
+        // "--background-index"
+
+        // "--clang-tidy",
+        "--pretty",
+        "--background-index",
+        // "--log=error",
+        "--log=verbose", // enable for debugging clangd problems
+        "--header-insertion=iwyu",
+        // Broad whitelist for compiler extraction - supports Zephyr SDK, ARM toolchains,
+        // and native_sim (host GCC/Clang). Matches typical *gcc/*g++ drivers in */bin paths
+        // across Linux/Windows while avoiding hardcoded locations.
+        "--query-driver=*/bin/*-gcc*,*/bin/gcc*,*/bin/*-g++*,*/bin/g++*",
+        // clangd should find the compile_commands.json automatically. But, if you keep most recent compile_commands.json
+        // in workspace root (for example as symlink), it is better to point to this file instead of allowing clangd to
+        // search for compile_commands.json in parent directories.
+        "--compile-commands-dir=."
+
     ]
 }

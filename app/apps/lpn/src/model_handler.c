@@ -22,20 +22,20 @@ LOG_MODULE_DECLARE(lpn_node);
   /* Sensor Server (temperatura STS4X) */
   static const struct device *const sensor_dev = DEVICE_DT_GET(DT_NODELABEL(sts4x));
 
-  /* Bramka zasilania czujnikow, włączona tylko na czas pomiaru */
+  /* Bramka zasilania czujnika - wlaczana tylko na czas pomiaru */
   static const struct device *const sensor_pwr = DEVICE_DT_GET(DT_NODELABEL(sensor_pwr));
   static bool sensor_pwr_ready;
 
-  /* Czas na power-up szyny i reset STS4X przed pomiarem. */
+  /* Czas na power-up szyny i reset STS4X przed pomiarem */
   #define STS4X_POWERUP_MS 2
 
-  /* Odczyt z STS4X i zakodowanie do struktury wartosci czujnika mesh. */
+  /* Odczyt z STS4X i zakodowanie do formatu wartosci czujnika mesh */
   static int temp_sample(struct bt_mesh_sensor_value *rsp)
   {
         struct sensor_value val;
         int err;
 
-        /* Zasilamy szyne czujnikow tylko na czas odczytu. */
+        /* Zasilamy szyne czujnika tylko na czas odczytu */
         if (sensor_pwr_ready) {
                 err = regulator_enable(sensor_pwr);
                 if (err) {
@@ -57,7 +57,7 @@ LOG_MODULE_DECLARE(lpn_node);
                 goto power_off;
         }
 
-        /* Konwersja wartosci czujnika do formatu Mesh. */
+        /* Konwersja wartosci czujnika do formatu mesh */
         err = bt_mesh_sensor_value_from_sensor_value(
                 bt_mesh_sensor_present_amb_temp.channels[0].format, &val, rsp);
         if (err == -ERANGE) {
@@ -67,7 +67,7 @@ LOG_MODULE_DECLARE(lpn_node);
         }
 
   power_off:
-        /* Wylaczamy zasilanie czujnika. */
+        /* Odetnij zasilanie czujnika */
         if (sensor_pwr_ready) {
                 int derr = regulator_disable(sensor_pwr);
                 if (derr) {
@@ -134,7 +134,7 @@ int model_handler_publish_temp(void)
 
 	LOG_INF("Temperatura: %s C", bt_mesh_sensor_ch_str(&val));
 
-	/* Publikacja wartosci czujnika. */
+	/* Publikacja wartosci czujnika do Frienda */
 	err = bt_mesh_sensor_srv_pub(&sensor_srv, NULL, &temp_sensor, &val);
 	if (err) {
 		LOG_DBG("Publikacja pominieta (err %d) - brak adresu publikacji?", err);
@@ -145,8 +145,7 @@ int model_handler_publish_temp(void)
 
 bool model_handler_is_configured(void)
 {
-	/* mod_pub_set (ostatni krok konfiguracji Frienda) ustawia adres publikacji
-	 * Sensor Servera. Dopoki jest UNASSIGNED, konfiguracja nie jest kompletna. */
+	/* Adres publikacji ustawia ostatni krok konfiguracji Frienda (mod_pub_set) */
 	return sensor_srv.pub.addr != BT_MESH_ADDR_UNASSIGNED;
 }
 
@@ -156,7 +155,7 @@ const struct bt_mesh_comp *model_handler_init(void)
 		LOG_ERR("STS4X niegotowy - Sensor Server nie bedzie mial danych");
 	}
 
-	/* Wylaczamy zasilanie czujnika po inicjalizacji. */
+	/* Po inicjalizacji zostawiamy czujnik bez zasilania */
 	sensor_pwr_ready = device_is_ready(sensor_pwr);
 	if (sensor_pwr_ready) {
 		int err = regulator_disable(sensor_pwr);
