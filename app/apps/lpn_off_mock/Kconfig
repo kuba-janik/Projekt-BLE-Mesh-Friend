@@ -1,0 +1,51 @@
+# Parametry aplikacji LPN OFF MOCK sterowane flaga builda (-DCONFIG_...=...).
+# Te same symbole co w apps/lpn_off, apps/lpn i apps/lpn_mock - dla spojnosci pomiarow.
+
+config LPN_SENSOR_INTERVAL_S
+	int "Interwal odczytu i publikacji temperatury do Frienda [s]"
+	default 10
+	range 1 86400
+	help
+	  Odstep miedzy kolejnymi publikacjami Sensor Server -> Friend.
+	  Sterowane build-time: -DCONFIG_LPN_SENSOR_INTERVAL_S=<sekundy>.
+
+	  Tu jest to jednoczesnie czas spedzony w System OFF: wezel budzi sie,
+	  publikuje i znowu odcina zasilanie. Pobudke daje GRTC taktowany z LFXO.
+
+config LPN_PROV_TIMEOUT_S
+	int "Limit czasu na provisioning i konfiguracje od Frienda [s]"
+	default 60
+	range 5 600
+	help
+	  Dotyczy tylko zimnego startu. Po przekroczeniu wezel i tak idzie w
+	  System OFF, zeby pomiar nie zawisl.
+
+config LPN_FRIENDSHIP
+	bool "Nawiazuj friendship przed publikacja"
+	default y
+	help
+	  Wylacz, zeby zmierzyc cykl bez kosztu Friend Request (okno na oferty
+	  to ~1,1 s ciaglego RX). Publikacja dziala bez friendship - to tylko TX.
+
+config LPN_FRIENDSHIP_TIMEOUT_S
+	int "Limit czasu na nawiazanie friendship [s]"
+	default 20
+	range 1 120
+	depends on LPN_FRIENDSHIP
+
+config LPN_DRAIN_MS
+	int "Zwloka po publikacji, zeby reklama wyszla w eter [ms]"
+	default 500
+	range 0 5000
+	help
+	  System OFF ucina nadawanie w polowie, wiec trzeba dac adverowi czas.
+
+config LPN_SEQ_MARGIN
+	int "Zapas doliczany do odtworzonego licznika seq"
+	default 32
+	range 0 4096
+	help
+	  Pokrywa wiadomosci, ktore mogly wyjsc po zapisie bloku retencyjnego.
+	  Bez zapasu Friend moglby odrzucic nas na replay protection.
+
+source "Kconfig.zephyr"
