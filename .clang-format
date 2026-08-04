@@ -1,0 +1,8 @@
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 4
+BreakBeforeBraces: Stroustrup
+IndentCaseLabels: false
+AlignConsecutiveMacros: true
+ColumnLimit: 100
+InsertNewlineAtEOF: true
