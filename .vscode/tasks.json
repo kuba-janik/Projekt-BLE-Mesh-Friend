@@ -53,6 +53,134 @@
             }
         },
         {
+            "label": "Build: LPN Off (bez retencji)",
+            "type": "shell",
+            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p always -d build/lpn_off app/apps/lpn_off",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Build: LPN Off (z retencja RAM)",
+            "type": "shell",
+            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p always -d build/lpn_off_ret app/apps/lpn_off -- -DEXTRA_CONF_FILE=overlay-ret.conf",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Build: LPN Off Mock (bez retencji)",
+            "type": "shell",
+            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p always -d build/lpn_off_mock app/apps/lpn_off_mock",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Build: LPN Off Mock (z retencja RAM)",
+            "type": "shell",
+            "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p always -d build/lpn_off_mock_ret app/apps/lpn_off_mock -- -DEXTRA_CONF_FILE=overlay-ret.conf",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Flash: LPN Off (bez retencji)",
+            "type": "shell",
+            "command": "west flash -d build/lpn_off --erase",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Flash: LPN Off (z retencja RAM)",
+            "type": "shell",
+            "command": "west flash -d build/lpn_off_ret --erase",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Flash: LPN Off Mock (bez retencji)",
+            "type": "shell",
+            "command": "west flash -d build/lpn_off_mock --erase",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Flash: LPN Off Mock (z retencja RAM)",
+            "type": "shell",
+            "command": "west flash -d build/lpn_off_mock_ret --erase",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
             "label": "Build: Baseline",
             "type": "shell",
             "command": "west build -b BTZ_EndDevice/nrf54l15/cpuapp -p always -d build/baseline app/apps/baseline",
