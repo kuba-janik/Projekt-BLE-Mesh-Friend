@@ -144,7 +144,9 @@ int main(void)
 
     /* Sekcje RAM za obrazem aplikacji nie sa uzywane - odetnij im zasilanie.
      * Wymaga COMMON_LIBC_MALLOC_ARENA_SIZE > 0, inaczej gasilibysmy arene malloc. */
-    power_down_unused_ram();
+    if (IS_ENABLED(CONFIG_RAM_POWER_DOWN_LIBRARY)) {
+        power_down_unused_ram();
+    }
 
     return 0;
 }
