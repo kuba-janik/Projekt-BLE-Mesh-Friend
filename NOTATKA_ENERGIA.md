@@ -46,8 +46,6 @@ przez wejście +3,3 V.
 katalogową dla nRF54L15. Potwierdzone porównaniem z płytką referencyjną
 nRF54L15 DK (0,95 µA tym samym firmware).
 
-![alt text](image.png)
-
 
 ### Peryferia i GPIO
 
@@ -132,34 +130,20 @@ Zmierzony ładunek pojedynczej transmisji:
 | Friend Poll | 56 µC |
 | Publikacja Sensor Status | 20 µC |
 
-### Pomiar I_avg w funkcji interwału (`lpn_mock`, aktualna konfiguracja)
+### Pomiar średniego poboru prądu w funkcji interwału (`lpn_mock`)
 
-Pomiar PPK2, `lpn_mock` po wdrożeniu RAM power-down i `FRIEND_RECV_WIN=50`.
 
-**Tylko publikacja (Poll wyłączony, `CONFIG_BT_MESH_LPN_POLL_TIMEOUT` na maksimum):**
+| Interwał [s] | I_avg - tylko publikacja [µA] | I_avg - publikacja + Poll [µA] |
+|:---:|:---:|:---:|
+| 10 | 3,64 | 10,20 |
+| 20 | 2,54 | 5,00 |
+| 30 | 2,17 | 4,00 |
+| 60 | 1,82 | 2,70 |
+| 120 | 1,72 | 2,30 |
+| 300 | 1,62 | 1,80 |
+| 600 | 1,58 | 1,6 |
 
-| SEND [s] | I_avg [µA] |
-|---|---|
-| 10 | 3,64 |
-| 20 | 2,54 |
-| 30 | 2,17 |
-| 60 | 1,82 |
-| 120 | 1,72 |
-| 300 | 1,62 |
-| 600 | 1,58 |
-
-**Publikacja i Poll razem (SEND = POLL, ten sam interwał):**
-
-| SEND = POLL [s] | I_avg [µA] |
-|---|---|
-| 10 | 10,20 |
-| 20 | 5,00 |
-| 30 | 4,00 |
-| 60 | 2,70 |
-| 120 | 2,30 |
-| 300 | 1,80 |
-
----
+Pełne dane pomiarowe: [arkusz Google Sheets](https://docs.google.com/spreadsheets/d/1gNK6X7evr7V1AWbSqUhf2QMvSOTeYyxt/edit?usp=sharing&ouid=103337996382107983686&rtpof=true&sd=true).
 
 ## Porównania
 
@@ -173,8 +157,19 @@ Różnica ~3,2 µA to koszt odczytu realnego czujnika STS4X.
 
 ### `System ON` vs `System OFF` 
 
+```
 
+TODO
+
+```
+
+
+### `Repeat` vs `ACK`
+```
+
+TODO
+
+```
 
 ---
 
-## Otwarte pytania
