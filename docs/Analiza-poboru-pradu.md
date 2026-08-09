@@ -1,5 +1,10 @@
 # Raport - pobór prądu węzła LPN w BLE Mesh
 
+Teoria standardu BLE Mesh (warstwa radiowa, managed flooding, adresowanie,
+role węzłów, provisioning) jest w [Teoria-BLE-Mesh.md](Teoria-BLE-Mesh.md). Architektura tego
+projektu (role Friend i LPN, implementacja, ograniczenia) jest w
+[README.md](../README.md).
+
 ---
 
 ## Cel
@@ -46,6 +51,7 @@ przez wejście +3,3 V.
 katalogową dla nRF54L15. Potwierdzone porównaniem z płytką referencyjną
 nRF54L15 DK (0,95 µA tym samym firmware).
 
+![Schemat podłączenia PPK2 przez JP1](images/schematic.png)
 
 ### Peryferia i GPIO
 

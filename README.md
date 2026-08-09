@@ -17,6 +17,15 @@ przydziela węzłowi adres i klucze sieciowe.
 
 Klucze sieciowe (NetKey, AppKey) są stałe i wspólne dla całej sieci, umożliwia to podsłuch w Wireshark.
 
+## Dokumentacja
+
+- [Teoria - BLE Mesh w pigułce](docs/Teoria-BLE-Mesh.md) - warstwa radiowa, managed flooding,
+  adresowanie, model danych, bezpieczeństwo, role węzłów, fazy provisioningu
+- [Analiza poboru prądu węzła LPN](docs/Analiza-poboru-pradu.md) - pomiary PPK2, optymalizacje
+  System ON, koszt komunikacji LPN-Friend, porównania
+
+Kolejność do pierwszego czytania: **Teoria → README (ten dokument) → Raport**.
+
 ## Architektura
 
 ### Friend
