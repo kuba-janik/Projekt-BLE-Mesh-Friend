@@ -171,11 +171,26 @@ TODO
 
 
 ### `Repeat` vs `ACK`
-```
 
-TODO
+`Repeat`: LPN wysyła Sensor Status jako broadcast. LPN nie czeka na
+odpowiedź. LPN wysyła wiadomość 3 razy (`NETWORK_TRANSMIT_COUNT`, domyślnie
+2 powtórki). LPN wysyła powtórki w odstępie 20 ms (`NETWORK_TRANSMIT_INTERVAL`).
+LPN nie wie, czy Friend odebrał wiadomość. Każda transmisja używa kanałów
+reklamowych 37, 38 i 39.
 
-```
+`ACK`: LPN wysyła Poll od razu po publikacji. Friend wstawia potwierdzenie tej
+wiadomości do Friend Queue. LPN odbiera potwierdzenie w oknie RX Polla. Ten
+wariant dodaje koszt jednego Polla do każdej publikacji.
+
+| Interwał [s] | `Repeat` [µA] | `ACK` [µA] |
+|:---:|:---:|:---:|
+| 10 | 3,64 | 10,20 |
+| 20 | 2,54 | 5,00 |
+| 30 | 2,17 | 4,00 |
+| 60 | 1,82 | 2,70 |
+| 120 | 1,72 | 2,30 |
+| 300 | 1,62 | 1,80 |
+| 600 | 1,58 | 1,6 |
 
 ---
 
