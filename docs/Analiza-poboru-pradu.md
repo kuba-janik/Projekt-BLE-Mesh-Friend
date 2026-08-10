@@ -167,13 +167,36 @@ Pełne dane pomiarowe: [arkusz Google Sheets](https://docs.google.com/spreadshee
 
 Różnica ~3,2 µA to koszt odczytu realnego czujnika STS4X.
 
-### `System ON` vs `System OFF` 
+### `System ON` vs `System OFF` - dlaczego friendship wyklucza deep sleep
 
-```
+Tych trybów nie porównujemy pomiarem. Standard BLE Mesh nie przewiduje deep
+sleep, czyli trybu System OFF, dla węzła w friendship. LPN śpi w trybie System ON
+idle: radio jest wyłączone, RAM zostaje podtrzymany, stos mesh żyje.
 
-TODO
+1. **Stan friendship istnieje tylko w RAM.** Stos nie utrwala adresu Frienda,
+   friend credentials, FSN, LPNCounter ani listy subskrypcji. Utrwala klucze,
+   adresy, IV Index, seq i RPL. System OFF kończy się resetem, więc każda pobudka
+   wymaga nowego Friend Requestu.
+2. **Friend credentials zależą od liczników sesji.** LPN podaje LPNCounter
+   w Friend Requeście, Friend podaje FriendCounter w Friend Offerze. Reset zeruje
+   LPNCounter. Standard nie definiuje wznowienia friendship.
+3. **Licznik seq musi rosnąć monotonicznie.** Inaczej Friend odrzuca wiadomość na
+   RPL. Deep sleep wymaga więc nośnika: flasha (`CONFIG_BT_SETTINGS`) albo
+   retencji RAM (`overlay-ret.conf` i `CONFIG_LPN_SEQ_MARGIN`).
+4. **Nordic nie zaleca System OFF dla LPN-a.** Lista optymalizacji LPN w nRF
+   Connect SDK go nie wymienia. Nordic używa System OFF do wyłączania węzła
+   (`bt_mesh_suspend()`, pobudka przyciskiem), a nie do cyklu Polla.
 
-```
+Skutek: nawiązanie friendship kosztuje więcej energii niż jego utrzymanie, a
+węzeł z System OFF płaci ten koszt w każdym cyklu. W tej aplikacji powrót do
+sieci trwa ponad 30 s z pracującym radiem. Zysk jest mały: 0,91 µA w System OFF
+wobec 1,5 µA w System ON idle.
+
+
+Źródła: [lista optymalizacji LPN w NCS](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/protocols/bt/bt_mesh/configuring.html),
+[System OFF jako tryb wyłączenia węzła](https://devzone.nordicsemi.com/f/nordic-q-a/91937/put-ble-mesh-node-in-deep-sleep/396214),
+[Zephyr #32256](https://github.com/zephyrproject-rtos/zephyr/issues/32256),
+[ESP-IDF #5484](https://github.com/espressif/esp-idf/issues/5484).
 
 
 ### `Repeat` vs `ACK`

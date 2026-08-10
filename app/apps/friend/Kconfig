@@ -1,3 +1,18 @@
 source "Kconfig.zephyr"
 
 mainmenu "BLE Mesh Node Friend"
+
+# Parametry sterowane flaga builda (-DCONFIG_...=...).
+
+config FRIEND_LPN_CFG_DELAY_MS
+	int "Zwloka po provisioningu, przed startem zdalnej konfiguracji LPN [ms]"
+	default 6000
+	range 0 30000
+	help
+	  Czas na domkniecie linku PB-ADV, zanim Config Client zacznie mowic do
+	  swiezo sprovisionowanego LPN-a.
+
+	  Uwaga na budzet energii LPN-a: przez cala te zwloke LPN jest zwyklym
+	  wezlem mesh i skanuje bez przerwy (~4-5 mA). Do pomiarow energii
+	  zimnego startu warto zejsc do 1000-1500 ms:
+	  -DCONFIG_FRIEND_LPN_CFG_DELAY_MS=1500.

@@ -20,6 +20,19 @@ config LPN_PROV_TIMEOUT_S
 	  Dotyczy tylko zimnego startu. Po przekroczeniu wezel i tak idzie w
 	  System OFF, zeby pomiar nie zawisl.
 
+config LPN_CFG_SETTLE_MS
+	int "Zapas po wykryciu konca konfiguracji, przed wejsciem w tryb LPN [ms]"
+	default 8000
+	range 0 30000
+	help
+	  Dotyczy tylko zimnego startu. Znacznikiem konca konfiguracji jest
+	  ustawiony adres publikacji, czyli ostatni krok Frienda (mod_pub_set) -
+	  ten zapas pokrywa tylko retransmisje Frienda po zgubionym Status.
+
+	  Caly ten czas LPN jest zwyklym wezlem mesh, wiec skanuje bez przerwy
+	  (~4-5 mA). Do pomiarow energii warto zejsc do 500-1000 ms:
+	  -DCONFIG_LPN_CFG_SETTLE_MS=1000.
+
 config LPN_FRIENDSHIP
 	bool "Nawiazuj friendship przed publikacja"
 	default y
@@ -31,7 +44,11 @@ config LPN_FRIENDSHIP_TIMEOUT_S
 	int "Limit czasu na nawiazanie friendship [s]"
 	default 20
 	range 1 120
-	depends on LPN_FRIENDSHIP
+	help
+	  Bez "depends on LPN_FRIENDSHIP" swiadomie: main.c bramkuje uzycie
+	  zwyklym if-em na IS_ENABLED(), a nie #if, wiec ten symbol musi istniec
+	  takze przy LPN_FRIENDSHIP=n - inaczej build nie linkuje sie na
+	  niezdefiniowanym CONFIG_LPN_FRIENDSHIP_TIMEOUT_S.
 
 config LPN_DRAIN_MS
 	int "Zwloka po publikacji, zeby reklama wyszla w eter [ms]"

@@ -44,8 +44,8 @@ static const uint8_t dev_uuid[16] = {0x1b, 0x7a, 0x0c, 0x54};
 
 /* Co ile pytac, czy Friend domknal konfiguracje */
 #define CFG_POLL_INTERVAL K_MSEC(200)
-/* Zapas na retry Frienda po zgubionym Status */
-#define CFG_SETTLE_DELAY K_SECONDS(8)
+/* Zapas na retry Frienda po zgubionym Status (patrz Kconfig) */
+#define CFG_SETTLE_DELAY K_MSEC(CONFIG_LPN_CFG_SETTLE_MS)
 
 static K_SEM_DEFINE(sem_provisioned, 0, 1);
 static K_SEM_DEFINE(sem_friendship, 0, 1);

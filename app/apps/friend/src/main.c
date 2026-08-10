@@ -141,7 +141,8 @@ static bool prov_in_progress;
 
 /* Konfiguracja rusza zaraz po provisioningu - spiacy LPN nie ACK-uje segmentow
  */
-#define LPN_CFG_DELAY      K_SECONDS(6) /* zwloka na domkniecie linku PB-ADV */
+/* zwloka na domkniecie linku PB-ADV (patrz Kconfig) */
+#define LPN_CFG_DELAY      K_MSEC(CONFIG_FRIEND_LPN_CFG_DELAY_MS)
 #define LPN_CFG_RETRIES    5            /* LPN bywa nieresponsywny do ~30 s po provisioningu */
 #define LPN_CFG_TIMEOUT_MS 5000         /* timeout Config Client - obudzony LPN odpowiada szybko */
 
