@@ -91,6 +91,12 @@ dodatkowej konfiguracji zostają zasilone.
 `CONFIG_RAM_POWER_DOWN_LIBRARY` wyłącza zasilanie nieużywanych sekcji w
 trybie System ON.
 
+**Zajętość pamięci po dodaniu tej flagi (`lpn_mock`):**
+
+| Region | Rozmiar | Wykorzystanie |
+|---|---|---|
+| FLASH | 208 032 B | 13,33% |
+| RAM | 55 192 B | 21,05% |
 
 **Zmierzony wynik:** pobór spoczynkowy `lpn_mock` z tą zmianą to **1,5 µA**. Tabela producenta podaje ~3,0 µA dla System ON idle z GRTC i
 **pełnymi 256 kB RAM w retencji** - stanu sprzed tej zmiany.
