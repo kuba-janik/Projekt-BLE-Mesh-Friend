@@ -227,3 +227,41 @@ wariant dodaje koszt jednego Polla do każdej publikacji.
 
 ---
 
+## Rekomendowana konfiguracja i żywotność
+
+Dla czujnika publikującego pomiar co 60 s lub rzadziej, bez wymogu
+natychmiastowej odbieralności komend z sieci:
+
+```conf
+CONFIG_BT_MESH_FRIEND_RECV_WIN=50       # skrócone okno Frienda (domyślnie 255 ms)
+CONFIG_RAM_POWER_DOWN_LIBRARY=y         # wyłącza zasilanie nieużywanych sekcji RAM
+CONFIG_BT_MESH_LPN_POLL_TIMEOUT=6000    # Friend Poll co 60 s
+CONFIG_BT_SETTINGS=n                    # węzły bezstanowe, patrz "Ograniczenia" w README
+```
+
+**`Repeat` zamiast `ACK`, jeśli LPN nie musi być osiągalny z sieci.**
+LPN publikuje bez Friend Polla - Friend i tak odbiera każdą wiadomość od
+razu (sekcja "Publikacja LPN-a nie używa Polla" w README). Koszt Polla
+dominuje przy krótkich interwałach (patrz tabela `Repeat` vs `ACK`) i
+zanika przy długich - poniżej T = 300 s różnica jest już w granicach
+szumu pomiarowego.
+
+Szacowana żywotność na CR2032 (220 mAh, 3,0 V), przy założeniu
+pomijalnego samorozładowania i braku ograniczeń prądem impulsowym:
+
+| Konfiguracja | I_avg | Żywotność |
+|---|---|---|
+| T = 600 s, `Repeat` | 1,58 µA | ~15,9 roku |
+| T = 60 s, `Repeat` | 1,82 µA | ~13,8 roku |
+| T = 60 s, `ACK` | 2,70 µA | ~9,3 roku |
+| T = 20 s, `lpn` (realny czujnik, `Repeat`) | 5,7 µA | ~4,4 roku |
+| T = 10 s, `ACK` | 10,20 µA | ~2,5 roku |
+
+⚠️ Te liczby są górnym ograniczeniem. Samorozładowanie CR2032 (~1%/rok)
+i zapady napięcia przy impulsach radiowych na starzejącym się ogniwie
+mogą skrócić realny czas pracy poniżej wyliczonego. Powyżej ~5 lat
+różnice między konfiguracjami przestają mieć znaczenie praktyczne, bo
+ogranicza bateria, nie firmware.
+
+---
+
