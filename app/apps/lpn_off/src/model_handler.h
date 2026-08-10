@@ -17,6 +17,10 @@ int model_handler_publish_temp(void);
 /* Czy Friend skonczyl konfiguracje - decyduje, kiedy mozna przejsc w tryb LPN */
 bool model_handler_is_configured(void);
 
+/* Odtwarza konfiguracje lokalnie, zamiast czekac na Config Client Frienda */
+int model_handler_restore_config(uint16_t net_idx, uint16_t app_idx, const uint8_t app_key[16],
+                                 uint16_t pub_addr);
+
 #ifdef __cplusplus
 }
 #endif

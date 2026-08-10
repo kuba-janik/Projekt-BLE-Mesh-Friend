@@ -1,22 +1,64 @@
-# Konfiguracja clangd dla tego workspace.
+# clangd documentation: https://clangd.llvm.org/config
 #
-# Uzywamy SCALONEJ bazy compile_commands.json w korzeniu repo, zlozonej z baz
-# wszystkich apek (baseline, friend, lpn, lpn_mock). Dzieki temu clangd dziala
-# dla kazdej apki bez przelaczania sciezki.
+# CLI usage example:
+# clangd --check=app/blinky/src/main.c \
+#   --query-driver=/opt/zephyr-sdk/arm-zephyr-eabi/bin/arm-zephyr-eabi-* \
+#   --compile-commands-dir=build-teensy
+# Note: possible option for troubleshooting (or enabled checks): --log=verbose
+
+
+# ------------------------------------------------------------------------------
+# clangd builds a compile command for each file based on:
+#   1) compile_commands.json
+#   2) adjustments from this .clangd file
 #
-# Regeneracja po `west build` (gdy dojda/znikna pliki zrodlowe albo zmieni sie
-# konfiguracja Kconfig/DTS):
-#   jq -s 'add' build/*/*/compile_commands.json > compile_commands.json
-#
-# UWAGA: wpisy maja sciezki /repo/... (build leci w kontenerze nrfutil, ktory
-# montuje projekt jako /repo). Aby rozwiazywaly sie na hoscie, musi istniec
-# symlink:  sudo ln -s /home/goodbyte/Projects/Projekt-BLE-Mesh-Friend /repo
+# Note:
+# - When .clang-tidy file is present clangd will use it for additional clang-tidy checks and configuration.
+# ------------------------------------------------------------------------------
+
+
 CompileFlags:
-  CompilationDatabase: .
-  # Flagi specyficzne dla arm-zephyr-eabi-gcc, ktorych clang nie zna.
-  # Usuwamy je, zeby clangd nie zglaszal "Unknown argument". Dopisz kolejne
-  # w tym samym stylu, jesli pojawia sie nowe "Unknown argument".
-  Remove:
-    - -fno-printf-return-value
-    - -fno-reorder-functions
-    - -mfp16-format=*
+ Add:
+   # Target / parsing compatibility
+   - -Wno-unknown-warning-option
+   # target needs to be set only if query-driver is not set, and there is no proper compiler name in compile_commands
+   # - --target=arm-zephyr-eabi
+
+
+ Remove:
+   # GCC printf optimization behavior - irrelevant for static analysis
+   # - -fno-printf-return-value
+   # GCC code layout optimization - not needed for AST/indexing
+   - -fno-reorder-functions
+   # ARM-specific FP16 format selection - codegen detail, not needed for parsing
+   - -mfp16-format=*
+
+
+---
+# Vendored / third-party dependencies - suppress all diagnostics
+# Suppresed zephyr and modules and bootloader.
+If:
+ PathMatch:
+   - deps/.*
+Diagnostics:
+ Suppress: "*"
+ UnusedIncludes: None
+ MissingIncludes: None
+
+
+# Index:
+#   Background: Skip
+---
+# Silence diagnostics in auto-generated Zephyr headers (syscalls, devicetree, ...).
+# These parse cleanly only when #included from a TU; clangd sees them standalone
+# when opened in the editor and flags missing types.
+
+
+If:
+ PathMatch: .*/generated/.*
+CompileFlags:
+ Add: [-ferror-limit=0]
+Diagnostics:
+ Suppress: "*"
+
+

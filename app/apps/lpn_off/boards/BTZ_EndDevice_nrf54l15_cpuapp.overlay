@@ -1,0 +1,48 @@
+/*
+ * Wylaczamy nieuzywane czujniki, zeby zdjac ten narzut energetyczny.
+ */
+
+&ltr329 {
+	status = "disabled";
+};
+
+&bmi270 {
+	status = "disabled";
+};
+
+/*
+ * STS4X: tryb pomiaru "low"
+ */
+&sts4x {
+	repeatability = <0>;
+};
+
+/*
+ * Region retencyjny na ostatniej sekcji RAM. Granulacja retencji na nRF54L15
+ * to 32 kB (RAM_SECTION_UNIT_SIZE), wiec mniejszy region i tak podtrzymalby
+ * cala sekcje - trzymamy wiec pelne 32 kB, zeby koszt byl jawny.
+ * Region jest w OBU wariantach builda; retencje wlacza dopiero Kconfig.
+ */
+/ {
+	sram_retained: memory@20038000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x20038000 DT_SIZE_K(32)>;
+		zephyr,memory-region = "RetainedMem";
+		status = "okay";
+
+		retainedmem0: retainedmem {
+			compatible = "zephyr,retained-ram";
+			status = "okay";
+		};
+	};
+
+	aliases {
+		retainedmemdevice = &retainedmem0;
+	};
+};
+
+/* SRAM skrocony do 224 kB, zeby nie nachodzil na region retencyjny */
+&cpuapp_sram {
+	reg = <0x20000000 DT_SIZE_K(224)>;
+	ranges = <0x0 0x20000000 0x38000>;
+};

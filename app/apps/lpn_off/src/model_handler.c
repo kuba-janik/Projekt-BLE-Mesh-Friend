@@ -9,7 +9,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_DECLARE(lpn_node);
+LOG_MODULE_DECLARE(lpn_off);
 
 /* Health Server */
 static const struct bt_mesh_health_srv_cb health_srv_cb; /* puste callbacki */
@@ -142,6 +142,38 @@ bool model_handler_is_configured(void)
 {
     /* Adres publikacji ustawia ostatni krok konfiguracji Frienda (mod_pub_set) */
     return sensor_srv.pub.addr != BT_MESH_ADDR_UNASSIGNED;
+}
+
+int model_handler_restore_config(uint16_t net_idx, uint16_t app_idx, const uint8_t app_key[16],
+                                 uint16_t pub_addr)
+{
+    /* Po cieplym starcie Friend nie widzi beacona, wiec Config Client nie ruszy */
+    uint8_t status = bt_mesh_app_key_add(app_idx, net_idx, app_key);
+
+    if (status) {
+        LOG_ERR("AppKey add nieudany (status 0x%02x)", status);
+        return -EIO;
+    }
+
+    /* Rownowaznik mod_app_bind - bez tego publikacja nie ma czym szyfrowac */
+    const struct bt_mesh_model *mod = bt_mesh_model_find(&elements[0], BT_MESH_MODEL_ID_SENSOR_SRV);
+
+    if (!mod) {
+        LOG_ERR("Nie znaleziono modelu Sensor Server");
+        return -ENODEV;
+    }
+    mod->keys[0] = app_idx;
+
+    /* Rownowaznik mod_pub_set - te same parametry, co ustawia Friend */
+    sensor_srv.pub.addr = pub_addr;
+    sensor_srv.pub.key = app_idx;
+    sensor_srv.pub.ttl = 7;
+    sensor_srv.pub.period = 0;
+    sensor_srv.pub.retransmit = BT_MESH_TRANSMIT(0, 30);
+
+    LOG_INF("Konfiguracja odtworzona lokalnie - publikacja na 0x%04x", pub_addr);
+
+    return 0;
 }
 
 const struct bt_mesh_comp *model_handler_init(void)

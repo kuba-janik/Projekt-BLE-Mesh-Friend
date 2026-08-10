@@ -8,12 +8,14 @@
 extern "C" {
 #endif
 
-/* Inicjuje modele mesh wezla i zwraca kompozycje (dla bt_mesh_init). */
+/* Inicjuje modele mesh wezla i zwraca kompozycje */
 const struct bt_mesh_comp *model_handler_init(void);
 
-/* Odczytuje temperature (mock: stala wartosc) i publikuje ja przez Sensor
- * Server. Zwraca 0 lub kod bledu. */
+/* Publikuje temperature (mock: stala wartosc) przez Sensor Server */
 int model_handler_publish_temp(void);
+
+/* Czy Friend skonczyl konfiguracje - decyduje, kiedy mozna przejsc w tryb LPN */
+bool model_handler_is_configured(void);
 
 #ifdef __cplusplus
 }
