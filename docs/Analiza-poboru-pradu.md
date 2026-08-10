@@ -93,10 +93,14 @@ trybie System ON.
 
 **Zajętość pamięci po dodaniu tej flagi (`lpn_mock`):**
 
-| Region | Rozmiar | Wykorzystanie |
-|---|---|---|
-| FLASH | 208 032 B | 13,33% |
-| RAM | 55 192 B | 21,05% |
+nRF54L15 ma **1,5 MB flasha** (1 572 864 B) i **256 kB RAM-u** (262 144 B) -
+te same wartości, co w projekcie `matter-end-device` (ta sama płytka
+BTZ_EndDevice/nrf54l15/cpuapp).
+
+| Region | Użyte | Dostępne | Wykorzystanie | Zapas |
+|---|---|---|---|---|
+| FLASH | 208 032 B | 1 572 864 B | 13,33% | 1 364 832 B |
+| RAM | 55 192 B | 262 144 B | 21,05% | 206 952 B |
 
 **Zmierzony wynik:** pobór spoczynkowy `lpn_mock` z tą zmianą to **1,5 µA**. Tabela producenta podaje ~3,0 µA dla System ON idle z GRTC i
 **pełnymi 256 kB RAM w retencji** - stanu sprzed tej zmiany.
