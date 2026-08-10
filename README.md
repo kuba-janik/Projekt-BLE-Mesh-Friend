@@ -17,6 +17,40 @@ przydziela węzłowi adres i klucze sieciowe.
 
 Klucze sieciowe (NetKey, AppKey) są stałe i wspólne dla całej sieci, umożliwia to podsłuch w Wireshark.
 
+## BLE Mesh - zastosowania i porównanie z Thread/Zigbee
+
+### Gdzie jest używany
+
+Głównie oświetlenie komercyjne i przemysłowe (Silvair, Casambi, OSRAM) oraz
+oświetlenie miejskie. Dalej: automatyka budynkowa i kontrola dostępu (zamki
+BLE), beacony i lokalizacja (asset tracking, wayfinding), hospitality
+(zamki hotelowe, statki wycieczkowe).
+
+### Gdzie BLE Mesh wygrywa
+
+- **Brak gatewaya/huba.** BLE jest wbudowane w każdy smartfon - Zigbee i
+  Thread zwykle wymagają dedykowanej infrastruktury.
+- **Niski koszt wejścia dla producentów sprzętu.** Nie trzeba certyfikować
+  ani dostarczać własnego huba.
+- **Szybka reakcja scen świetlnych** - poniżej 30 ms od komendy do reakcji
+  opraw.
+- **Prosty onboarding** - konfiguracja przez zwykłą aplikację na telefonie.
+- **Niski pobór węzłów końcowych (LPN)** - LPN nie routuje ruchu, więc może
+  spać większość czasu. To dokładnie mechanizm testowany w tym projekcie.
+
+### Gdzie BLE Mesh przegrywa
+
+- **Skalowalność i przepustowość przy dużych, gęstych sieciach.** Managed
+  flooding generuje więcej narzutu niż routing tablicowy Thread/Zigbee.
+- **Węzły relay muszą być zasilane z sieci** - w przeciwieństwie do Zigbee,
+  gdzie router może być bateryjny w pewnych konfiguracjach.
+- **Brak natywnego IP.** Thread/Matter routuje IPv6 natywnie, co ułatwia
+  integrację z chmurą bez gatewaya tłumaczącego protokoły.
+- **Mniejszy praktyczny limit węzłów niż Zigbee** w typowych wdrożeniach.
+- **Rynkowe momentum przesuwa się w stronę Matter-over-Thread** dla nowych
+  projektów smart-home - BLE Mesh dominuje głównie w komercyjnym
+  oświetleniu i budynkach.
+
 ## Dokumentacja
 
 - [Teoria - BLE Mesh w pigułce](docs/Teoria-BLE-Mesh.md) - warstwa radiowa, managed flooding,
